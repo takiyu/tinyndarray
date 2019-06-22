@@ -1,0 +1,7 @@
+*.swp
+*.swo
+*.swn
+*.swm
+*.plist
+
+build

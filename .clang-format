@@ -1,0 +1,18 @@
+---
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 8
+UseTab: Never
+BreakBeforeBraces: Attach
+AccessModifierOffset: -4
+Standard: Cpp11
+AlignOperands: true
+BreakBeforeTernaryOperators: true
+AllowShortIfStatementsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+PointerAlignment: Left
+AlignAfterOpenBracket: Align
+ColumnLimit: 80
+AllowShortFunctionsOnASingleLine: Empty
+BasedOnStyle: 'Google'
