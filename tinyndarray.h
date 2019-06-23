@@ -485,7 +485,7 @@ inline auto ReverseOp(F op) {
 }
 
 template <typename F>
-auto GetApplyOpClosure(F op) {
+inline auto WrapOpForIter(F op) {
     return [op](NdArray::Iter& o, const NdArray::ConstIter& l,
                 const NdArray::ConstIter& r) {
         *o = op(*l, *r);  // wrap for pointer operation
@@ -789,7 +789,7 @@ NdArray ApplyElemWiseOp(const NdArray& lhs, const NdArray& rhs, F op) {
         const Shape& ret_shape = CheckBroadcastable(lhs.shape(), rhs.shape());
         // Apply broadcast
         NdArray ret(ret_shape);
-        ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
+        ApplyOpBroadcast(ret, lhs, rhs, 0, WrapOpForIter(op));
         return ret;
     }
 }
@@ -829,7 +829,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
                                                         "Invalid shape for "
                                                         "in-place operation");
         // Apply broadcast
-        ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
+        ApplyOpBroadcast(ret, lhs, rhs, 0, WrapOpForIter(op));
         return std::move(ret);
     }
 }
@@ -851,7 +851,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
                                 throw std::runtime_error(
                                         "Invalid shape for in-place operation");
         // Apply broadcast (result matrix is lhs)
-        ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
+        ApplyOpBroadcast(ret, lhs, rhs, 0, WrapOpForIter(op));
         return std::move(ret);
     }
 }
