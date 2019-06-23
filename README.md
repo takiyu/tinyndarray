@@ -11,6 +11,8 @@ Single Header NdArray of NumPy Implementation in C++.
 TinyNdArray supports only float array.
 In the following Python code `dtype=float32` is omitted, and in C++ code assuming `using namespace tinyndarray;` is declared.
 
+For more detail, please see declarations in top of the header file.
+
 ### Copy behavior
 
 Copy behavior of NdArray is shallow copy which is same as NumPy.
