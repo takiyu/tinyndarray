@@ -9,6 +9,7 @@ Single Header NdArray of NumPy Implementation in C++.
 ## Quick Guide
 
 TinyNdArray supports only float array.
+
 In the following Python code `dtype=float32` is omitted, and in C++ code assuming `using namespace tinyndarray;` is declared.
 
 For more detail, please see declarations in top of the header file.
@@ -366,3 +367,16 @@ However, even right-reference values are passed, when the size is changed by bro
 </pre></td>
 </tr>
 </table>
+
+## Parallel Execusion
+
+In default, most of all operations run in parallel by threads.
+
+When changing the number of workers, please set `N_WORKERS`.
+
+```
+// Set no parallel.
+tinyndarray::N_WORKERS = 1;
+// Default setting. Use all of cores.
+tinyndarray::N_WORKERS = std::thread::hardware_concurrency();
+```

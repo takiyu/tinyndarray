@@ -2,6 +2,7 @@
 #define TINYNDARRAY_H_ONCE
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <exception>
@@ -11,6 +12,7 @@
 #include <memory>
 #include <random>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 namespace tinyndarray {
@@ -21,6 +23,13 @@ using Shape = std::vector<int>;
 using Index = std::vector<int>;
 using SliceIndex = std::vector<std::pair<int, int>>;
 using Axes = std::vector<int>;
+
+// =============================================================================
+// =========================== Parallel Configuration ==========================
+// =============================================================================
+// The number of workers. To disable parallel execution, please set `1`.
+static int N_WORKERS = -1;
+static int BATCH_SCALE = 4;
 
 // =============================================================================
 // ======================= Nested Float Initializer List =======================
@@ -485,20 +494,54 @@ inline auto ReverseOp(F op) {
 }
 
 template <typename F>
-inline auto WrapOpForIter(F op) {
-    return [op](NdArray::Iter& o, const NdArray::ConstIter& l,
-                const NdArray::ConstIter& r) {
-        *o = op(*l, *r);  // wrap for pointer operation
-    };
+void RunParallel(size_t size, F op) {
+    // Fetch the number of workers
+    int n_workers = N_WORKERS;
+    if (n_workers <= 0) {
+        n_workers = static_cast<int>(std::thread::hardware_concurrency());
+    }
+
+    const int size_i = static_cast<int>(size);
+    const int n_batch = n_workers * BATCH_SCALE;
+    const int batch_size = size_i / n_batch + (size_i % n_batch ? 1 : 0);
+    n_workers = std::min(n_workers, batch_size);
+
+    if (n_workers <= 1) {
+        // Single execution
+        for (int i = 0; i < size_i; i++) {
+            // Operation
+            op(i);
+        }
+    } else {
+        // Parallel execution
+        std::atomic<int> next_batch(0);
+        std::vector<std::thread> workers(static_cast<size_t>(n_workers));
+        for (auto&& worker : workers) {
+            worker = std::thread([=, &next_batch]() {
+                int batch_cnt = 0;
+                while ((batch_cnt = next_batch++) < n_batch) {
+                    for (int i = 0; i < batch_size; i++) {
+                        const int idx = batch_size * batch_cnt + i;
+                        if (size_i <= idx) {
+                            break;
+                        }
+                        // Operation
+                        op(idx);
+                    }
+                }
+            });
+        }
+        for (auto&& worker : workers) {
+            worker.join();
+        }
+    }
 }
 
 template <typename F>
 inline void ApplyOpSimple(NdArray& ret, F op) {
     auto&& ret_data = ret.data();
     // Simply apply all
-    for (size_t i = 0; i < ret.size(); i++) {
-        *(ret_data++) = op();
-    }
+    RunParallel(ret.size(), [&](int i) { ret_data[i] = op(); });
 }
 
 template <typename F>
@@ -506,9 +549,7 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& src, F op) {
     auto&& ret_data = ret.data();
     auto&& src_data = src.data();
     // Simply apply all
-    for (size_t i = 0; i < ret.size(); i++) {
-        *(ret_data++) = op(*(src_data++));
-    }
+    RunParallel(ret.size(), [&](int i) { ret_data[i] = op(src_data[i]); });
 }
 
 template <typename F>
@@ -518,9 +559,8 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
     auto&& l_data = lhs.data();
     auto&& r_data = rhs.data();
     // Simply apply all
-    for (size_t i = 0; i < ret.size(); i++) {
-        *(ret_data++) = op(*(l_data++), *(r_data++));
-    }
+    RunParallel(ret.size(),
+                [&](int i) { ret_data[i] = op(l_data[i], r_data[i]); });
 }
 
 template <typename F>
@@ -529,9 +569,7 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& lhs, const float rhs,
     auto&& ret_data = ret.data();
     auto&& l_data = lhs.data();
     // Simply apply all
-    for (size_t i = 0; i < ret.size(); i++) {
-        *(ret_data++) = op(*(l_data++), rhs);
-    }
+    RunParallel(ret.size(), [&](int i) { ret_data[i] = op(l_data[i], rhs); });
 }
 
 static std::vector<int> ComputeChildSizes(const Shape& shape) {
@@ -775,6 +813,14 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
                          l_child_sizes, r_child_sizes, 0, depth_offset, op);
 }
 
+template <typename F>
+inline auto WrapOpForIter(F op) {
+    return [op](NdArray::Iter& o, const NdArray::ConstIter& l,
+                const NdArray::ConstIter& r) {
+        *o = op(*l, *r);  // wrap pointer operation for iterator's one
+    };
+}
+
 // --------------- Utilities for NdArray (Broadcast element-wise) --------------
 template <typename F>
 NdArray ApplyElemWiseOp(const NdArray& lhs, const NdArray& rhs, F op) {
@@ -821,13 +867,13 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
         // Check it is possible to broadcast
         const Shape& ret_shape = CheckBroadcastable(lhs.shape(), rhs.shape());
         // Select result with shape matching
-        NdArray&& ret = (ret_shape == lhs.shape()) ? lhs :          // left
-                                (ret_shape == rhs.shape()) ? rhs :  // right
-                                        (allow_new) ? NdArray(ret_shape)
-                                                    :  // new instance
-                                                throw std::runtime_error(
-                                                        "Invalid shape for "
-                                                        "in-place operation");
+        NdArray&& ret =
+                (ret_shape == lhs.shape()) ? lhs :                  // left
+                        (ret_shape == rhs.shape()) ? rhs :          // right
+                                (allow_new) ? NdArray(ret_shape) :  // new
+                                        throw std::runtime_error(
+                                                "Invalid shape for in-place"
+                                                " operation");
         // Apply broadcast
         ApplyOpBroadcast(ret, lhs, rhs, 0, WrapOpForIter(op));
         return std::move(ret);
@@ -847,7 +893,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
         // Select result with shape matching
         NdArray&& ret =
                 (ret_shape == lhs.shape()) ? lhs :          // left
-                        (allow_new) ? NdArray(ret_shape) :  // new instance
+                        (allow_new) ? NdArray(ret_shape) :  // new
                                 throw std::runtime_error(
                                         "Invalid shape for in-place operation");
         // Apply broadcast (result matrix is lhs)
