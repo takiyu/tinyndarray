@@ -100,10 +100,10 @@ public:
     void fill(float v);
     NdArray copy() const;
 
-    NdArray::Iter begin();
-    NdArray::Iter end();
-    NdArray::ConstIter begin() const;
-    NdArray::ConstIter end() const;
+    Iter begin();
+    Iter end();
+    ConstIter begin() const;
+    ConstIter end() const;
 
     operator float() const;
 
@@ -672,7 +672,7 @@ NdArray ApplySingleOp(const NdArray& x, F op) {
 template <typename F>
 NdArray ApplySingleOpInplace(NdArray&& x, F op) {
     ApplyOpSimple(x, x, op);
-    return x;
+    return std::move(x);
 }
 
 // ------------------ Utilities for NdArray (Broadcast common) -----------------
@@ -816,7 +816,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
     if (lhs.shape() == rhs.shape()) {
         // Apply without broadcast because of same size for speed up.
         ApplyOpSimple(lhs, lhs, rhs, op);  // Use left as result
-        return lhs;
+        return std::move(lhs);
     } else {
         // Check it is possible to broadcast
         const Shape& ret_shape = CheckBroadcastable(lhs.shape(), rhs.shape());
@@ -830,7 +830,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
                                                         "in-place operation");
         // Apply broadcast
         ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
-        return ret;
+        return std::move(ret);
     }
 }
 
@@ -840,7 +840,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
     if (lhs.shape() == rhs.shape()) {
         // Apply without broadcast because of same size for speed up.
         ApplyOpSimple(lhs, lhs, rhs, op);
-        return lhs;
+        return std::move(lhs);
     } else {
         // Check it is possible to broadcast
         const Shape& ret_shape = CheckBroadcastable(lhs.shape(), rhs.shape());
@@ -852,7 +852,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
                                         "Invalid shape for in-place operation");
         // Apply broadcast (result matrix is lhs)
         ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
-        return ret;
+        return std::move(ret);
     }
 }
 
@@ -869,7 +869,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, float rhs, F op) {
     // Broadcast right float
     // Simply apply all
     ApplyOpSimple(lhs, lhs, rhs, op);
-    return lhs;
+    return std::move(lhs);
 }
 
 template <typename F>
@@ -969,7 +969,8 @@ NdArray ReduceAxis(const NdArray& src, const Axes& axes, const float init_v,
         // Reduce
         auto&& ret_data = ret.data();
         auto&& src_data = src.data();
-        for (size_t src_idx = 0; src_idx < src.size(); src_idx++) {
+        const int src_size = static_cast<int>(src.size());
+        for (int src_idx = 0; src_idx < src_size; src_idx++) {
             // Result index
             const int ret_idx = ComputeReducedIndex(
                     src_idx, ret_child_sizes, src_child_sizes, sorted_axes);
@@ -1072,7 +1073,8 @@ static NdArray DotNdArray1d(const NdArray& lhs, const NdArray& rhs) {
     auto&& l_data = lhs.data();
     auto&& r_data = rhs.data();
     float sum = 0.f;
-    for (size_t i = 0; i < lhs.size(); i++) {
+    const int size = static_cast<int>(lhs.size());
+    for (int i = 0; i < size; i++) {
         sum += l_data[i] * r_data[i];
     }
     return {sum};
@@ -1192,8 +1194,8 @@ static void CrossNdArray1d1dShape22(NdArray::Iter ret_data,
 }
 
 template <typename F>
-NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs,
-                         size_t last_size, F op) {
+NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, int last_size,
+                         F op) {
     const Shape& l_shape = lhs.shape();
     const Shape& r_shape = rhs.shape();
     Shape ret_shape = CheckBroadcastable({l_shape.begin(), l_shape.end() - 1},
@@ -1222,7 +1224,8 @@ static int CheckInversable(const Shape& shape) {
 static void InvertNdArray2d(NdArray::Iter ret_data, NdArray::ConstIter src_data,
                             int order) {
     const int order_2 = order * 2;
-    std::unique_ptr<float[]> tmp(new float[order_2 * order_2]);
+    const size_t tmp_size = static_cast<size_t>(order_2 * order_2);
+    std::unique_ptr<float[]> tmp(new float[tmp_size]);
     float* tmp_data = tmp.get();
 
     for (int row = 0; row < order; row++) {
@@ -1286,7 +1289,7 @@ static NdArray InvertNdArray(const NdArray& src) {
 static NdArray InvertNdArrayInplace(NdArray&& src) {
     // Compute inverse
     InvertNdArrayNd(src.data(), src.data(), src.shape(), src.size());
-    return src;
+    return std::move(src);
 }
 
 // =============================================================================
@@ -1638,8 +1641,8 @@ NdArray NdArray::copy() const {
     // Copy array data
     float* dst_data = sub->v.get();
     const float* src_data = m_sub->v.get();
-    const int size = m_sub->size;
-    for (int i = 0; i < size; i++) {
+    const size_t size = m_sub->size;
+    for (size_t i = 0; i < size; i++) {
         *(dst_data++) = *(src_data++);
     }
     // Create new array

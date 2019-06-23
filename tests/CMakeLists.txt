@@ -49,7 +49,8 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
                          -Wold-style-cast -Woverloaded-virtual \
                          -Wredundant-decls -Wshadow -Wsign-conversion \
                          -Wsign-promo  -Wno-old-style-cast\
-                         -Wstrict-overflow=5 -Wundef -Wno-unknown-pragmas")
+                         -Wstrict-overflow=5 -Wundef -Wno-unknown-pragmas \
+                         -Wreturn-std-move")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     set(warning_options "--pedantic -Wall -Wextra -Wcast-align -Wcast-qual \
                          -Wctor-dtor-privacy -Wdisabled-optimization \
@@ -97,3 +98,9 @@ add_executable(tinyndarray_tests_separated
     ${CMAKE_CURRENT_SOURCE_DIR}/test_separated_2.cpp
 )
 setup_target(tinyndarray_tests_separated "" "")
+
+# Executable file for tests (time consumption)
+add_executable(tinyndarray_tests_time_consumption
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_time_consumption.cpp
+)
+setup_target(tinyndarray_tests_time_consumption "" "")
