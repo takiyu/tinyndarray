@@ -43,6 +43,9 @@ using FloatList = typename FloatListHelper<D>::type;
 // =============================================================================
 class NdArray {
 public:
+    class Iter;
+    class ConstIter;
+
     NdArray();
     NdArray(const NdArray&);
     NdArray(NdArray&&) noexcept;
@@ -92,15 +95,15 @@ public:
     size_t size() const;
     const Shape& shape() const;
     size_t ndim() const;
-    float* data();
-    const float* data() const;
+    Iter data();
+    ConstIter data() const;
     void fill(float v);
     NdArray copy() const;
 
-    float* begin();
-    float* end();
-    const float* begin() const;
-    const float* end() const;
+    NdArray::Iter begin();
+    NdArray::Iter end();
+    NdArray::ConstIter begin() const;
+    NdArray::ConstIter end() const;
 
     operator float() const;
 
@@ -141,6 +144,55 @@ private:
 
     static std::random_device s_rand_seed;
     static std::mt19937 s_rand_engine;
+};
+
+// --------------------------------- Iterator ----------------------------------
+class NdArray::Iter {
+public:
+    Iter(NdArray& parent_);
+    Iter(NdArray& parent_, float* p_);
+    float& operator*();
+    const float& operator*() const;
+    float& operator[](int i);
+    const float& operator[](int i) const;
+    Iter& operator++();
+    Iter& operator--();
+    Iter operator++(int);
+    Iter operator--(int);
+    Iter operator+(int i) const;
+    Iter operator-(int i) const;
+    Iter& operator+=(int i);
+    Iter& operator-=(int i);
+    bool operator==(const Iter& other) const;
+    bool operator!=(const Iter& other) const;
+    operator ConstIter() const;
+
+private:
+    NdArray& parent;
+    float* p;
+};
+
+// ------------------------------ Const Iterator -------------------------------
+class NdArray::ConstIter {
+public:
+    ConstIter(const NdArray& parent_);
+    ConstIter(const NdArray& parent_, const float* p_);
+    const float& operator*() const;
+    const float& operator[](int i) const;
+    ConstIter& operator++();
+    ConstIter& operator--();
+    ConstIter operator++(int);
+    ConstIter operator--(int);
+    ConstIter operator+(int i) const;
+    ConstIter operator-(int i) const;
+    ConstIter& operator+=(int i);
+    ConstIter& operator-=(int i);
+    bool operator==(const ConstIter& other) const;
+    bool operator!=(const ConstIter& other) const;
+
+private:
+    const NdArray& parent;
+    const float* p;
 };
 
 // --------------------------------- Operators ---------------------------------
@@ -433,8 +485,16 @@ inline auto ReverseOp(F op) {
 }
 
 template <typename F>
+auto GetApplyOpClosure(F op) {
+    return [op](NdArray::Iter& o, const NdArray::ConstIter& l,
+                const NdArray::ConstIter& r) {
+        *o = op(*l, *r);  // wrap for pointer operation
+    };
+}
+
+template <typename F>
 inline void ApplyOpSimple(NdArray& ret, F op) {
-    float* ret_data = ret.data();
+    auto&& ret_data = ret.data();
     // Simply apply all
     for (size_t i = 0; i < ret.size(); i++) {
         *(ret_data++) = op();
@@ -443,8 +503,8 @@ inline void ApplyOpSimple(NdArray& ret, F op) {
 
 template <typename F>
 inline void ApplyOpSimple(NdArray& ret, const NdArray& src, F op) {
-    float* ret_data = ret.data();
-    const float* src_data = src.data();
+    auto&& ret_data = ret.data();
+    auto&& src_data = src.data();
     // Simply apply all
     for (size_t i = 0; i < ret.size(); i++) {
         *(ret_data++) = op(*(src_data++));
@@ -454,9 +514,9 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& src, F op) {
 template <typename F>
 inline void ApplyOpSimple(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
                           F op) {
-    float* ret_data = ret.data();
-    const float* l_data = lhs.data();
-    const float* r_data = rhs.data();
+    auto&& ret_data = ret.data();
+    auto&& l_data = lhs.data();
+    auto&& r_data = rhs.data();
     // Simply apply all
     for (size_t i = 0; i < ret.size(); i++) {
         *(ret_data++) = op(*(l_data++), *(r_data++));
@@ -466,8 +526,8 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
 template <typename F>
 inline void ApplyOpSimple(NdArray& ret, const NdArray& lhs, const float rhs,
                           F op) {
-    float* ret_data = ret.data();
-    const float* l_data = lhs.data();
+    auto&& ret_data = ret.data();
+    auto&& l_data = lhs.data();
     // Simply apply all
     for (size_t i = 0; i < ret.size(); i++) {
         *(ret_data++) = op(*(l_data++), rhs);
@@ -555,7 +615,7 @@ NdArray CreateRandomArray(const Shape& shape, D&& dist, R&& rand_engine) {
 }
 
 // ----------------------- Utilities for NdArray (Slice) -----------------------
-static void CopySliceImpl(const float*& src_data, float*& dst_data,
+static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& dst_data,
                           const Shape& src_shape, const SliceIndex& slice_index,
                           const std::vector<int>& child_sizes, size_t depth) {
     if (depth < src_shape.size()) {
@@ -587,8 +647,8 @@ static NdArray CopySlice(const NdArray& src, const Shape& slice_shape,
     NdArray ret(slice_shape);
 
     // Start to copy
-    const float* src_data = src.data();
-    float* dst_data = ret.data();
+    auto&& src_data = src.data();
+    auto&& dst_data = ret.data();
     CopySliceImpl(src_data, dst_data, src_shape, slice_index, child_sizes, 0);
 
     return ret;
@@ -662,8 +722,8 @@ static Shape PadShape(const Shape& shape, size_t size) {
 }
 
 template <typename F>
-void ApplyOpBroadcastImpl(float* ret_data, const float* l_data,
-                          const float* r_data, const Shape& ret_shape,
+void ApplyOpBroadcastImpl(NdArray::Iter ret_data, NdArray::ConstIter l_data,
+                          NdArray::ConstIter r_data, const Shape& ret_shape,
                           const Shape& l_shape, const Shape& r_shape,
                           const std::vector<int>& ret_child_sizes,
                           const std::vector<int>& l_child_sizes,
@@ -729,10 +789,7 @@ NdArray ApplyElemWiseOp(const NdArray& lhs, const NdArray& rhs, F op) {
         const Shape& ret_shape = CheckBroadcastable(lhs.shape(), rhs.shape());
         // Apply broadcast
         NdArray ret(ret_shape);
-        ApplyOpBroadcast(ret, lhs, rhs, 0,
-                         [&](float* o, const float* l, const float* r) {
-                             *o = op(*l, *r);  // wrap for pointer operation
-                         });
+        ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
         return ret;
     }
 }
@@ -772,10 +829,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
                                                         "Invalid shape for "
                                                         "in-place operation");
         // Apply broadcast
-        ApplyOpBroadcast(ret, lhs, rhs, 0,
-                         [&](float* o, const float* l, const float* r) {
-                             *o = op(*l, *r);  // wrap for pointer operation
-                         });
+        ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
         return ret;
     }
 }
@@ -797,10 +851,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
                                 throw std::runtime_error(
                                         "Invalid shape for in-place operation");
         // Apply broadcast (result matrix is lhs)
-        ApplyOpBroadcast(ret, lhs, rhs, 0,
-                         [&](float* o, const float* l, const float* r) {
-                             *o = op(*l, *r);  // wrap for pointer operation
-                         });
+        ApplyOpBroadcast(ret, lhs, rhs, 0, GetApplyOpClosure(op));
         return ret;
     }
 }
@@ -883,7 +934,7 @@ static auto CheckReductable(const Shape& shape, const Axes& axes) {
 
 template <typename F>
 NdArray ReduceAxisAll(const NdArray& src, const float init_v, F op) {
-    const float* data = src.data();
+    auto&& data = src.data();
     float ret = init_v;
     for (size_t i = 0; i < src.size(); i++) {
         ret = op(ret, *(data++));
@@ -916,8 +967,8 @@ NdArray ReduceAxis(const NdArray& src, const Axes& axes, const float init_v,
         NdArray ret(ret_shape, init_v);
 
         // Reduce
-        float* ret_data = ret.data();
-        const float* src_data = src.data();
+        auto&& ret_data = ret.data();
+        auto&& src_data = src.data();
         for (size_t src_idx = 0; src_idx < src.size(); src_idx++) {
             // Result index
             const int ret_idx = ComputeReducedIndex(
@@ -943,7 +994,8 @@ NdArray ReduceAxisNoEmpty(const NdArray& src, const Axes& axes,
 }
 
 // ----------------------- Utilities for NdArray (Print) -----------------------
-static void OutputArrayLine(std::ostream& os, const float*& data, size_t size) {
+static void OutputArrayLine(std::ostream& os, NdArray::ConstIter& data,
+                            size_t size) {
     os << "[";  // Begin of a line
     for (size_t i = 0; i < size; i++) {
         os << *(data++);  // Output an element
@@ -955,7 +1007,7 @@ static void OutputArrayLine(std::ostream& os, const float*& data, size_t size) {
     }
 }
 
-static void OutputArrayMultiDim(std::ostream& os, const float*& data,
+static void OutputArrayMultiDim(std::ostream& os, NdArray::ConstIter& data,
                                 const Shape& shape, size_t depth) {
     for (size_t i = 0; i < static_cast<size_t>(shape[depth]); i++) {
         // Heading
@@ -986,7 +1038,7 @@ static void OutputArrayMultiDim(std::ostream& os, const float*& data,
 static void OutputNdArray(std::ostream& os, const NdArray& x) {
     const size_t size = x.size();
     const Shape& shape = x.shape();
-    const float* data = x.data();
+    auto&& data = x.data();
 
     if (size == 0 || shape.size() == 0) {
         // Empty
@@ -1017,8 +1069,8 @@ static NdArray DotNdArray1d(const NdArray& lhs, const NdArray& rhs) {
         throw std::runtime_error("Invalid size for inner product of 1D");
     }
     // Inner product of vectors
-    const float* l_data = lhs.data();
-    const float* r_data = rhs.data();
+    auto&& l_data = lhs.data();
+    auto&& r_data = rhs.data();
     float sum = 0.f;
     for (size_t i = 0; i < lhs.size(); i++) {
         sum += l_data[i] * r_data[i];
@@ -1039,9 +1091,9 @@ static NdArray DotNdArray2d(const NdArray& lhs, const NdArray& rhs) {
     const int& n_l_col = n_contract;
     const int& n_r_col = n_col;
     NdArray ret({n_row, n_col});
-    float* ret_data = ret.data();
-    const float* l_data = lhs.data();
-    const float* r_data = rhs.data();
+    auto&& ret_data = ret.data();
+    auto&& l_data = lhs.data();
+    auto&& r_data = rhs.data();
     for (int row_idx = 0; row_idx < n_row; row_idx++) {
         for (int col_idx = 0; col_idx < n_col; col_idx++) {
             float sum = 0.f;
@@ -1084,9 +1136,9 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
     NdArray ret(ret_shape);
     const int n_ret = static_cast<int>(ret.size());
     const int n_contract = l_child_size;
-    float* ret_data = ret.data();
-    const float* l_data = lhs.data();
-    const float* r_data = rhs.data();
+    auto&& ret_data = ret.data();
+    auto&& l_data = lhs.data();
+    auto&& r_data = rhs.data();
     for (int ret_idx = 0; ret_idx < n_ret; ret_idx++) {
         // Compute left/right index from `ret_idx`
         const int l_idx = (ret_idx / ret_child_size_2) * l_child_size;
@@ -1105,32 +1157,36 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
 }
 
 // ------------------- Utilities for NdArray (Cross product) -------------------
-static void CrossNdArray1d1dShape33(float* ret_data, const float* l_data,
-                                    const float* r_data) {
+static void CrossNdArray1d1dShape33(NdArray::Iter ret_data,
+                                    NdArray::ConstIter l_data,
+                                    NdArray::ConstIter r_data) {
     // lhs.shape() == {3} && rhs.shape == {3}
     *(ret_data++) = l_data[1] * r_data[2] - l_data[2] * r_data[1];
     *(ret_data++) = l_data[2] * r_data[0] - l_data[0] * r_data[2];
     *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-static void CrossNdArray1d1dShape32(float* ret_data, const float* l_data,
-                                    const float* r_data) {
+static void CrossNdArray1d1dShape32(NdArray::Iter ret_data,
+                                    NdArray::ConstIter l_data,
+                                    NdArray::ConstIter r_data) {
     // lhs.shape() == {3} && rhs.shape == {2}
     *(ret_data++) = -l_data[2] * r_data[1];
     *(ret_data++) = l_data[2] * r_data[0];
     *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-static void CrossNdArray1d1dShape23(float* ret_data, const float* l_data,
-                                    const float* r_data) {
+static void CrossNdArray1d1dShape23(NdArray::Iter ret_data,
+                                    NdArray::ConstIter l_data,
+                                    NdArray::ConstIter r_data) {
     // lhs.shape() == {3} && rhs.shape == {3}
     *(ret_data++) = l_data[1] * r_data[2];
     *(ret_data++) = -l_data[0] * r_data[2];
     *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-static void CrossNdArray1d1dShape22(float* ret_data, const float* l_data,
-                                    const float* r_data) {
+static void CrossNdArray1d1dShape22(NdArray::Iter ret_data,
+                                    NdArray::ConstIter l_data,
+                                    NdArray::ConstIter r_data) {
     // lhs.shape() == {2} && rhs.shape == {2}
     *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
@@ -1163,7 +1219,8 @@ static int CheckInversable(const Shape& shape) {
     return size;
 }
 
-static void InvertNdArray2d(float* ret_data, const float* src_data, int order) {
+static void InvertNdArray2d(NdArray::Iter ret_data, NdArray::ConstIter src_data,
+                            int order) {
     const int order_2 = order * 2;
     std::unique_ptr<float[]> tmp(new float[order_2 * order_2]);
     float* tmp_data = tmp.get();
@@ -1204,7 +1261,7 @@ static void InvertNdArray2d(float* ret_data, const float* src_data, int order) {
     }
 }
 
-static void InvertNdArrayNd(float* ret_data, const float* src_data,
+static void InvertNdArrayNd(NdArray::Iter ret_data, NdArray::ConstIter src_data,
                             const Shape& src_shape, size_t src_size) {
     // Check it is possible to invert
     const int order = CheckInversable(src_shape);
@@ -1265,6 +1322,143 @@ public:
     Shape shape = {0};
     std::shared_ptr<float> v;  // C++17: Replace with `shared_ptr<float[]>`.
 };
+
+// --------------------------------- Iterator ----------------------------------
+NdArray::Iter::Iter(NdArray& parent_)
+    : parent(parent_), p(parent_.m_sub->v.get()) {}
+
+NdArray::Iter::Iter(NdArray& parent_, float* p_) : parent(parent_), p(p_) {}
+
+float& NdArray::Iter::operator*() {
+    return *p;
+}
+
+const float& NdArray::Iter::operator*() const {
+    return *p;
+}
+
+float& NdArray::Iter::operator[](int i) {
+    return p[i];
+}
+
+const float& NdArray::Iter::operator[](int i) const {
+    return p[i];
+}
+
+NdArray::Iter& NdArray::Iter::operator++() {
+    p++;
+    return *this;
+}
+
+NdArray::Iter& NdArray::Iter::operator--() {
+    p--;
+    return *this;
+}
+
+NdArray::Iter NdArray::Iter::operator++(int) {
+    Iter tmp = *this;
+    p++;
+    return tmp;
+}
+
+NdArray::Iter NdArray::Iter::operator--(int) {
+    Iter tmp = *this;
+    p--;
+    return tmp;
+}
+
+NdArray::Iter NdArray::Iter::operator+(int i) const {
+    return {parent, p + i};
+}
+
+NdArray::Iter NdArray::Iter::operator-(int i) const {
+    return {parent, p - i};
+}
+
+NdArray::Iter& NdArray::Iter::operator+=(int i) {
+    p += i;
+    return *this;
+}
+
+NdArray::Iter& NdArray::Iter::operator-=(int i) {
+    p -= i;
+    return *this;
+}
+
+bool NdArray::Iter::operator==(const Iter& other) const {
+    return p == other.p;
+}
+
+bool NdArray::Iter::operator!=(const Iter& other) const {
+    return p != other.p;
+}
+
+NdArray::Iter::operator ConstIter() const {
+    return ConstIter{parent, p};
+}
+
+// ------------------------------ Const Iterator -------------------------------
+NdArray::ConstIter::ConstIter(const NdArray& parent_)
+    : parent(parent_), p(parent_.m_sub->v.get()) {}
+
+NdArray::ConstIter::ConstIter(const NdArray& parent_, const float* p_)
+    : parent(parent_), p(p_) {}
+
+const float& NdArray::ConstIter::operator*() const {
+    return *p;
+}
+
+const float& NdArray::ConstIter::operator[](int i) const {
+    return p[i];
+}
+
+NdArray::ConstIter& NdArray::ConstIter::operator++() {
+    p++;
+    return *this;
+}
+
+NdArray::ConstIter& NdArray::ConstIter::operator--() {
+    p--;
+    return *this;
+}
+
+NdArray::ConstIter NdArray::ConstIter::operator++(int) {
+    ConstIter tmp = *this;
+    p++;
+    return tmp;
+}
+
+NdArray::ConstIter NdArray::ConstIter::operator--(int) {
+    ConstIter tmp = *this;
+    p--;
+    return tmp;
+}
+
+NdArray::ConstIter NdArray::ConstIter::operator+(int i) const {
+    return {parent, p + i};
+}
+
+NdArray::ConstIter NdArray::ConstIter::operator-(int i) const {
+    return {parent, p - i};
+}
+
+NdArray::ConstIter& NdArray::ConstIter::operator+=(int i) {
+    p += i;
+    return *this;
+}
+
+NdArray::ConstIter& NdArray::ConstIter::operator-=(int i) {
+    p -= i;
+    return *this;
+}
+
+bool NdArray::ConstIter::operator==(const ConstIter& other) const {
+    return p == other.p;
+}
+
+bool NdArray::ConstIter::operator!=(const ConstIter& other) const {
+    return p != other.p;
+}
 
 // ------------------------------- Static Member -------------------------------
 std::random_device NdArray::s_rand_seed;
@@ -1368,9 +1562,9 @@ NdArray NdArray::Arange(float start, float stop, float step) {
     // Create empty array
     NdArray ret({static_cast<int>(n)});
     // Fill by step
-    float* data = ret.data();
+    auto&& data = ret.data();
     for (size_t i = 0; i < n; i++) {
-        data[i] = start + step * static_cast<float>(i);
+        *(data++) = start + step * static_cast<float>(i);
     }
     return ret;
 }
@@ -1426,12 +1620,12 @@ size_t NdArray::ndim() const {
     return m_sub->shape.size();
 }
 
-float* NdArray::data() {
-    return m_sub->v.get();
+NdArray::Iter NdArray::data() {
+    return Iter(*this);
 }
 
-const float* NdArray::data() const {
-    return m_sub->v.get();
+NdArray::ConstIter NdArray::data() const {
+    return ConstIter(*this);
 }
 
 void NdArray::fill(float v) {
@@ -1453,20 +1647,20 @@ NdArray NdArray::copy() const {
 }
 
 // ----------------------------- Begin/End Methods -----------------------------
-float* NdArray::begin() {
-    return m_sub->v.get();
+NdArray::Iter NdArray::begin() {
+    return Iter(*this);
 }
 
-float* NdArray::end() {
-    return m_sub->v.get() + m_sub->size;
+NdArray::Iter NdArray::end() {
+    return Iter(*this, m_sub->v.get() + m_sub->size);
 }
 
-const float* NdArray::begin() const {
-    return m_sub->v.get();
+NdArray::ConstIter NdArray::begin() const {
+    return ConstIter(*this);
 }
 
-const float* NdArray::end() const {
-    return m_sub->v.get() + m_sub->size;
+NdArray::ConstIter NdArray::end() const {
+    return ConstIter(*this, m_sub->v.get() + m_sub->size);
 }
 
 // ------------------------------- Cast Operator -------------------------------

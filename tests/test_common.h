@@ -90,8 +90,8 @@ static bool IsSameNdArray(const NdArray& m1, const NdArray& m2) {
     if (m1.shape() != m2.shape()) {
         return false;
     }
-    const float* data1 = m1.data();
-    const float* data2 = m2.data();
+    auto data1 = m1.data();
+    auto data2 = m2.data();
     for (size_t i = 0; i < m1.size(); i++) {
         if (*(data1++) != *(data2++)) {
             return false;
