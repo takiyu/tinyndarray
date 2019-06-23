@@ -506,7 +506,7 @@ std::list<int> CheckFListShapeImpl(const FList& init_list) {
 }
 
 template <>
-std::list<int> CheckFListShapeImpl(const FloatList<0>& init_list) {
+inline std::list<int> CheckFListShapeImpl(const FloatList<0>& init_list) {
     return {static_cast<int>(init_list.size())};
 }
 
@@ -590,7 +590,7 @@ static NdArray CopySlice(const NdArray& src, const Shape& slice_shape,
     return ret;
 }
 
-static std::pair<int, int> CvtToSliceIndexItem(std::initializer_list<int> l) {
+inline std::pair<int, int> CvtToSliceIndexItem(std::initializer_list<int> l) {
     if (l.size() != 2) {
         throw std::runtime_error("Invalid slice index format");
     }
@@ -599,14 +599,14 @@ static std::pair<int, int> CvtToSliceIndexItem(std::initializer_list<int> l) {
 
 // ------------------ Utilities for NdArray (Single operator) ------------------
 template <typename F>
-static NdArray ApplySingleOp(const NdArray& x, F op) {
+NdArray ApplySingleOp(const NdArray& x, F op) {
     NdArray ret(x.shape());
     ApplyOpSimple(ret, x, op);
     return ret;
 }
 
 template <typename F>
-static NdArray ApplySingleOpInplace(NdArray&& x, F op) {
+NdArray ApplySingleOpInplace(NdArray&& x, F op) {
     ApplyOpSimple(x, x, op);
     return x;
 }
@@ -658,14 +658,13 @@ static Shape PadShape(const Shape& shape, size_t size) {
 }
 
 template <typename F>
-static void ApplyOpBroadcastImpl(float* ret_data, const float* l_data,
-                                 const float* r_data, const Shape& ret_shape,
-                                 const Shape& l_shape, const Shape& r_shape,
-                                 const std::vector<int>& ret_child_sizes,
-                                 const std::vector<int>& l_child_sizes,
-                                 const std::vector<int>& r_child_sizes,
-                                 size_t depth, size_t const depth_offset,
-                                 F op) {
+void ApplyOpBroadcastImpl(float* ret_data, const float* l_data,
+                          const float* r_data, const Shape& ret_shape,
+                          const Shape& l_shape, const Shape& r_shape,
+                          const std::vector<int>& ret_child_sizes,
+                          const std::vector<int>& l_child_sizes,
+                          const std::vector<int>& r_child_sizes, size_t depth,
+                          size_t const depth_offset, F op) {
     if (depth < ret_shape.size() - depth_offset) {
         // Fetch shapes
         const int l_s = l_shape[depth];
@@ -693,9 +692,8 @@ static void ApplyOpBroadcastImpl(float* ret_data, const float* l_data,
 }
 
 template <typename F>
-static void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs,
-                             const NdArray& rhs, const size_t depth_offset,
-                             F op) {
+void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
+                      const size_t depth_offset, F op) {
     const Shape& ret_shape = ret.shape();
 
     // Pre-compute padded shape
@@ -715,7 +713,7 @@ static void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs,
 
 // --------------- Utilities for NdArray (Broadcast element-wise) --------------
 template <typename F>
-static NdArray ApplyElemWiseOp(const NdArray& lhs, const NdArray& rhs, F op) {
+NdArray ApplyElemWiseOp(const NdArray& lhs, const NdArray& rhs, F op) {
     if (lhs.shape() == rhs.shape()) {
         // Apply without broadcast because of same size for speed up.
         NdArray ret(lhs.shape());
@@ -736,7 +734,7 @@ static NdArray ApplyElemWiseOp(const NdArray& lhs, const NdArray& rhs, F op) {
 }
 
 template <typename F>
-static NdArray ApplyElemWiseOp(const NdArray& lhs, const float rhs, F op) {
+NdArray ApplyElemWiseOp(const NdArray& lhs, const float rhs, F op) {
     // Broadcast right float
     NdArray ret(lhs.shape());
     // Simply apply all
@@ -745,15 +743,15 @@ static NdArray ApplyElemWiseOp(const NdArray& lhs, const float rhs, F op) {
 }
 
 template <typename F>
-static NdArray ApplyElemWiseOp(const float lhs, const NdArray& rhs, F op) {
+inline NdArray ApplyElemWiseOp(const float lhs, const NdArray& rhs, F op) {
     // Swap left and right
     return ApplyElemWiseOp(rhs, lhs, InverseOp(op));
 }
 
 // ---------- Utilities for NdArray (Broadcast element-wise in-place) ----------
 template <typename F>
-static NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
-                                      const bool allow_new = true) {
+NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
+                               const bool allow_new = true) {
     if (lhs.shape() == rhs.shape()) {
         // Apply without broadcast because of same size for speed up.
         ApplyOpSimple(lhs, lhs, rhs, op);  // Use left as result
@@ -779,8 +777,8 @@ static NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
 }
 
 template <typename F>
-static NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
-                                      const bool allow_new = true) {
+NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
+                               const bool allow_new = true) {
     if (lhs.shape() == rhs.shape()) {
         // Apply without broadcast because of same size for speed up.
         ApplyOpSimple(lhs, lhs, rhs, op);
@@ -804,7 +802,7 @@ static NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
 }
 
 template <typename F>
-static NdArray ApplyElemWiseOpInplace(const NdArray& lhs, NdArray&& rhs, F op,
+inline NdArray ApplyElemWiseOpInplace(const NdArray& lhs, NdArray&& rhs, F op,
                                       const bool allow_new = true) {
     // Swap left and right
     return ApplyElemWiseOpInplace(std::move(rhs), lhs, InverseOp(op),
@@ -812,7 +810,7 @@ static NdArray ApplyElemWiseOpInplace(const NdArray& lhs, NdArray&& rhs, F op,
 }
 
 template <typename F>
-static NdArray ApplyElemWiseOpInplace(NdArray&& lhs, float rhs, F op) {
+NdArray ApplyElemWiseOpInplace(NdArray&& lhs, float rhs, F op) {
     // Broadcast right float
     // Simply apply all
     ApplyOpSimple(lhs, lhs, rhs, op);
@@ -820,7 +818,7 @@ static NdArray ApplyElemWiseOpInplace(NdArray&& lhs, float rhs, F op) {
 }
 
 template <typename F>
-static NdArray ApplyElemWiseOpInplace(float lhs, NdArray&& rhs, F op) {
+inline NdArray ApplyElemWiseOpInplace(float lhs, NdArray&& rhs, F op) {
     // Swap left and right
     return ApplyElemWiseOpInplace(std::move(rhs), lhs, InverseOp(op));
 }
@@ -880,7 +878,7 @@ static auto CheckReductable(const Shape& shape, const Axes& axes) {
 }
 
 template <typename F>
-static NdArray ReduceAxisAll(const NdArray& src, const float init_v, F op) {
+NdArray ReduceAxisAll(const NdArray& src, const float init_v, F op) {
     const float* data = src.data();
     float ret = init_v;
     for (size_t i = 0; i < src.size(); i++) {
@@ -890,8 +888,8 @@ static NdArray ReduceAxisAll(const NdArray& src, const float init_v, F op) {
 }
 
 template <typename F>
-static NdArray ReduceAxis(const NdArray& src, const Axes& axes,
-                          const float init_v, F op) {
+NdArray ReduceAxis(const NdArray& src, const Axes& axes, const float init_v,
+                   F op) {
     if (axes.size() == 0) {
         // No Axis -> Reduce all
         return ReduceAxisAll(src, init_v, op);
@@ -930,8 +928,8 @@ static NdArray ReduceAxis(const NdArray& src, const Axes& axes,
 }
 
 template <typename F>
-static NdArray ReduceAxisNoEmpty(const NdArray& src, const Axes& axes,
-                                 const float init_v, F op) {
+NdArray ReduceAxisNoEmpty(const NdArray& src, const Axes& axes,
+                          const float init_v, F op) {
     // Check empty
     if (src.size() == 0) {
         throw std::runtime_error("zero-size array to reduction operation");
@@ -1134,8 +1132,8 @@ static void CrossNdArray1d1dShape22(float* ret_data, const float* l_data,
 }
 
 template <typename F>
-static NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs,
-                                size_t last_size, F op) {
+NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs,
+                         size_t last_size, F op) {
     const Shape& l_shape = lhs.shape();
     const Shape& r_shape = rhs.shape();
     Shape ret_shape = CheckBroadcastable({l_shape.begin(), l_shape.end() - 1},
