@@ -375,8 +375,10 @@ In default, most of all operations run in parallel by threads.
 When changing the number of workers, please set `N_WORKERS`.
 
 ```
+// Default setting. Use all of cores.
+tinyndarray::N_WORKERS = -1;
 // Set no parallel.
 tinyndarray::N_WORKERS = 1;
-// Default setting. Use all of cores.
-tinyndarray::N_WORKERS = std::thread::hardware_concurrency();
+// Use 4 cores
+tinyndarray::N_WORKERS = 4;
 ```

@@ -161,9 +161,9 @@ public:
     Iter(NdArray& parent_);
     Iter(NdArray& parent_, float* p_);
     float& operator*();
-    const float& operator*() const;
+    float& operator*() const;
     float& operator[](int i);
-    const float& operator[](int i) const;
+    float& operator[](int i) const;
     Iter& operator++();
     Iter& operator--();
     Iter operator++(int);
@@ -760,9 +760,11 @@ static Shape PadShape(const Shape& shape, size_t size) {
 }
 
 template <typename F>
-void ApplyOpBroadcastImpl(NdArray::Iter ret_data, NdArray::ConstIter l_data,
-                          NdArray::ConstIter r_data, const Shape& ret_shape,
-                          const Shape& l_shape, const Shape& r_shape,
+void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
+                          const NdArray::ConstIter& l_data,
+                          const NdArray::ConstIter& r_data,
+                          const Shape& ret_shape, const Shape& l_shape,
+                          const Shape& r_shape,
                           const std::vector<int>& ret_child_sizes,
                           const std::vector<int>& l_child_sizes,
                           const std::vector<int>& r_child_sizes, size_t depth,
@@ -779,13 +781,10 @@ void ApplyOpBroadcastImpl(NdArray::Iter ret_data, NdArray::ConstIter l_data,
         const int n_loop = std::max(l_s, r_s);
         for (int i = 0; i < n_loop; i++) {
             // Apply recursively
-            ApplyOpBroadcastImpl(ret_data, l_data, r_data, ret_shape, l_shape,
+            ApplyOpBroadcastImpl(ret_data + i * ret_step, l_data + i * l_step,
+                                 r_data + i * r_step, ret_shape, l_shape,
                                  r_shape, ret_child_sizes, l_child_sizes,
                                  r_child_sizes, depth + 1, depth_offset, op);
-            // Next pointer
-            ret_data += ret_step;
-            l_data += l_step;
-            r_data += r_step;
         }
     } else {
         // Apply operator
@@ -815,7 +814,7 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
 
 template <typename F>
 inline auto WrapOpForIter(F op) {
-    return [op](NdArray::Iter& o, const NdArray::ConstIter& l,
+    return [op](const NdArray::Iter& o, const NdArray::ConstIter& l,
                 const NdArray::ConstIter& r) {
         *o = op(*l, *r);  // wrap pointer operation for iterator's one
     };
@@ -1205,38 +1204,38 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
 }
 
 // ------------------- Utilities for NdArray (Cross product) -------------------
-static void CrossNdArray1d1dShape33(NdArray::Iter ret_data,
-                                    NdArray::ConstIter l_data,
-                                    NdArray::ConstIter r_data) {
+static void CrossNdArray1d1dShape33(const NdArray::Iter& ret_data,
+                                    const NdArray::ConstIter& l_data,
+                                    const NdArray::ConstIter& r_data) {
     // lhs.shape() == {3} && rhs.shape == {3}
-    *(ret_data++) = l_data[1] * r_data[2] - l_data[2] * r_data[1];
-    *(ret_data++) = l_data[2] * r_data[0] - l_data[0] * r_data[2];
-    *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
+    ret_data[0] = l_data[1] * r_data[2] - l_data[2] * r_data[1];
+    ret_data[1] = l_data[2] * r_data[0] - l_data[0] * r_data[2];
+    ret_data[2] = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-static void CrossNdArray1d1dShape32(NdArray::Iter ret_data,
-                                    NdArray::ConstIter l_data,
-                                    NdArray::ConstIter r_data) {
+static void CrossNdArray1d1dShape32(const NdArray::Iter& ret_data,
+                                    const NdArray::ConstIter& l_data,
+                                    const NdArray::ConstIter& r_data) {
     // lhs.shape() == {3} && rhs.shape == {2}
-    *(ret_data++) = -l_data[2] * r_data[1];
-    *(ret_data++) = l_data[2] * r_data[0];
-    *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
+    ret_data[0] = -l_data[2] * r_data[1];
+    ret_data[1] = l_data[2] * r_data[0];
+    ret_data[2] = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-static void CrossNdArray1d1dShape23(NdArray::Iter ret_data,
-                                    NdArray::ConstIter l_data,
-                                    NdArray::ConstIter r_data) {
+static void CrossNdArray1d1dShape23(const NdArray::Iter& ret_data,
+                                    const NdArray::ConstIter& l_data,
+                                    const NdArray::ConstIter& r_data) {
     // lhs.shape() == {3} && rhs.shape == {3}
-    *(ret_data++) = l_data[1] * r_data[2];
-    *(ret_data++) = -l_data[0] * r_data[2];
-    *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
+    ret_data[0] = l_data[1] * r_data[2];
+    ret_data[1] = -l_data[0] * r_data[2];
+    ret_data[2] = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-static void CrossNdArray1d1dShape22(NdArray::Iter ret_data,
-                                    NdArray::ConstIter l_data,
-                                    NdArray::ConstIter r_data) {
+static void CrossNdArray1d1dShape22(const NdArray::Iter& ret_data,
+                                    const NdArray::ConstIter& l_data,
+                                    const NdArray::ConstIter& r_data) {
     // lhs.shape() == {2} && rhs.shape == {2}
-    *ret_data = l_data[0] * r_data[1] - l_data[1] * r_data[0];
+    ret_data[0] = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
 template <typename F>
@@ -1382,7 +1381,7 @@ float& NdArray::Iter::operator*() {
     return *p;
 }
 
-const float& NdArray::Iter::operator*() const {
+float& NdArray::Iter::operator*() const {
     return *p;
 }
 
@@ -1390,7 +1389,7 @@ float& NdArray::Iter::operator[](int i) {
     return p[i];
 }
 
-const float& NdArray::Iter::operator[](int i) const {
+float& NdArray::Iter::operator[](int i) const {
     return p[i];
 }
 
