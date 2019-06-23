@@ -278,6 +278,14 @@ All dimension rules of numpy are implemented.
 | ```np.cross(a, b)```                                     | ```Cross(a, b)```                                        |
 | ```a.cross(b)```                                         | ```a.cross(b)```                                         |
 
+### Inverse
+
+All dimension rules of numpy are implemented.
+
+| **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
+|:--------------------------------------------------------:|:--------------------------------------------------------:|
+| ```np.linalg.inv(a)```                                   | ```Inv(a, b)```                                          |
+
 
 ## In-place Operation
 

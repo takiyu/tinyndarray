@@ -325,6 +325,8 @@ NdArray Sum(const NdArray& x, const Axes& axes = {});
 NdArray Min(const NdArray& x, const Axes& axes = {});
 NdArray Max(const NdArray& x, const Axes& axes = {});
 NdArray Mean(const NdArray& x, const Axes& axes = {});
+// Inverse
+NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
 // Arithmetic operators (NdArray, NdArray)
 NdArray Add(NdArray&& lhs, NdArray&& rhs);
@@ -407,6 +409,8 @@ NdArray ArcTan2(const NdArray& y, NdArray&& x);
 NdArray ArcTan2(NdArray&& y, const NdArray& x);
 NdArray ArcTan2(NdArray&& y, float x);
 NdArray ArcTan2(float y, NdArray&& x);
+// Inverse
+NdArray Inv(NdArray&& x);
 
 // *****************************************************************************
 // *****************************************************************************
@@ -424,7 +428,7 @@ T Clamp(const T& v, const T& lower, const T& upper) {
 }
 
 template <typename F>
-inline auto InverseOp(F op) {
+inline auto ReverseOp(F op) {
     return [op](float a, float b) { return op(b, a); };  // Swap left and right
 }
 
@@ -745,7 +749,7 @@ NdArray ApplyElemWiseOp(const NdArray& lhs, const float rhs, F op) {
 template <typename F>
 inline NdArray ApplyElemWiseOp(const float lhs, const NdArray& rhs, F op) {
     // Swap left and right
-    return ApplyElemWiseOp(rhs, lhs, InverseOp(op));
+    return ApplyElemWiseOp(rhs, lhs, ReverseOp(op));
 }
 
 // ---------- Utilities for NdArray (Broadcast element-wise in-place) ----------
@@ -805,7 +809,7 @@ template <typename F>
 inline NdArray ApplyElemWiseOpInplace(const NdArray& lhs, NdArray&& rhs, F op,
                                       const bool allow_new = true) {
     // Swap left and right
-    return ApplyElemWiseOpInplace(std::move(rhs), lhs, InverseOp(op),
+    return ApplyElemWiseOpInplace(std::move(rhs), lhs, ReverseOp(op),
                                   allow_new);
 }
 
@@ -820,7 +824,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, float rhs, F op) {
 template <typename F>
 inline NdArray ApplyElemWiseOpInplace(float lhs, NdArray&& rhs, F op) {
     // Swap left and right
-    return ApplyElemWiseOpInplace(std::move(rhs), lhs, InverseOp(op));
+    return ApplyElemWiseOpInplace(std::move(rhs), lhs, ReverseOp(op));
 }
 
 // ------------------- Utilities for NdArray (Axis reduction) ------------------
@@ -1143,6 +1147,89 @@ NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs,
     NdArray ret(ret_shape);
     ApplyOpBroadcast(ret, lhs, rhs, 1, op);
     return ret;
+}
+
+// ---------------------- Utilities for NdArray (Inverse) ----------------------
+static int CheckInversable(const Shape& shape) {
+    if (shape.size() < 2) {
+        throw std::runtime_error("For matrix inverse, require at least 2-dim");
+    }
+    const int size = shape.back();
+    if (size != shape.end()[-2]) {
+        throw std::runtime_error(
+                "For matrix inverse, last 2 dimensions of the"
+                " array must be square");
+    }
+    return size;
+}
+
+static void InvertNdArray2d(float* ret_data, const float* src_data, int order) {
+    const int order_2 = order * 2;
+    std::unique_ptr<float[]> tmp(new float[order_2 * order_2]);
+    float* tmp_data = tmp.get();
+
+    for (int row = 0; row < order; row++) {
+        for (int col = 0; col < order; col++) {
+            tmp_data[row * order_2 + col] = src_data[row * order + col];
+        }
+    }
+    for (int row = 0; row < order; row++) {
+        for (int col = order; col < order_2; col++) {
+            tmp_data[row * order_2 + col] = (row == col - order) ? 1.f : 0.f;
+        }
+    }
+    for (int row = 0; row < order; row++) {
+        float t = tmp_data[row * order_2 + row];
+        if (std::abs(t) == 0.f) {
+            t = 0.00001f;  // Escape zero (TODO: More pricise method)
+        }
+        for (int col = row; col < order_2; col++) {
+            tmp_data[row * order_2 + col] /= t;
+        }
+        for (int col = 0; col < order; col++) {
+            if (row == col) {
+                continue;
+            }
+            t = tmp_data[col * order_2 + row];
+            for (int k = 0; k < order_2; k++) {
+                tmp_data[col * order_2 + k] -= t * tmp_data[row * order_2 + k];
+            }
+        }
+    }
+
+    for (int row = 0; row < order; row++) {
+        for (int col = order; col < order_2; col++) {
+            *(ret_data++) = tmp_data[row * order_2 + col];
+        }
+    }
+}
+
+static void InvertNdArrayNd(float* ret_data, const float* src_data,
+                            const Shape& src_shape, size_t src_size) {
+    // Check it is possible to invert
+    const int order = CheckInversable(src_shape);
+    // Compute invese for each lower 2 dimension.
+    const int one_size = order * order;
+    const int n = static_cast<int>(src_size) / one_size;
+    for (int i = 0; i < n; i++) {
+        InvertNdArray2d(ret_data, src_data, order);
+        ret_data += one_size;
+        src_data += one_size;
+    }
+}
+
+static NdArray InvertNdArray(const NdArray& src) {
+    // Create new array
+    NdArray ret(src.shape());
+    // Compute inverse
+    InvertNdArrayNd(ret.data(), src.data(), src.shape(), src.size());
+    return ret;
+}
+
+static NdArray InvertNdArrayInplace(NdArray&& src) {
+    // Compute inverse
+    InvertNdArrayNd(src.data(), src.data(), src.shape(), src.size());
+    return src;
 }
 
 // =============================================================================
@@ -2387,6 +2474,11 @@ NdArray Mean(const NdArray& x, const Axes& axes) {
     return sum / denom;
 }
 
+// Inverse
+NdArray Inv(const NdArray& x) {
+    return InvertNdArray(x);
+}
+
 // ------------------------ In-place Operator Functions ------------------------
 // Arithmetic operators (NdArray, NdArray)
 NdArray Add(NdArray&& lhs, NdArray&& rhs) {
@@ -2733,6 +2825,11 @@ NdArray ArcTan2(NdArray&& y, float x) {
 NdArray ArcTan2(float y, NdArray&& x) {
     return ApplyElemWiseOpInplace(
             y, std::move(x), static_cast<float (*)(float, float)>(std::atan2));
+}
+
+// Inverse
+NdArray Inv(NdArray&& x) {
+    return InvertNdArrayInplace(std::move(x));
 }
 
 #endif  // TINYNDARRAY_IMPLEMENTATION

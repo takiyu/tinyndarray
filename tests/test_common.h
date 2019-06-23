@@ -2,76 +2,88 @@
 
 #include "../tinyndarray.h"
 
+#include <iomanip>
+
 using namespace tinyndarray;
 
-static void RequireNdArray(const NdArray& m, const std::string& str) {
+static void RequireNdArray(const NdArray& m, const std::string& str,
+                           int precision = -1) {
     std::stringstream ss;
+    if (0 < precision) {
+        ss << std::setprecision(4);
+    }
     ss << m;
     REQUIRE(ss.str() == str);
 }
 
 static void RequireNdArrayInplace(NdArray&& x, const std::string& str,
-                                  std::function<NdArray(NdArray&&)> f) {
+                                  std::function<NdArray(NdArray&&)> f,
+                                  int precision = -1) {
     uintptr_t x_id = x.id();
     const NdArray& y = f(std::move(x));
     REQUIRE(y.id() == x_id);
-    RequireNdArray(y, str);
+    RequireNdArray(y, str, precision);
 }
 
 static void RequireNdArrayInplace(
         NdArray&& lhs, NdArray&& rhs, const std::string& str,
-        std::function<NdArray(NdArray&&, NdArray&&)> f) {
+        std::function<NdArray(NdArray&&, NdArray&&)> f, int precision = -1) {
     uintptr_t l_id = lhs.id();
     uintptr_t r_id = rhs.id();
     const NdArray& ret = f(std::move(lhs), std::move(rhs));
     REQUIRE((ret.id() == l_id || ret.id() == r_id));
-    RequireNdArray(ret, str);
+    RequireNdArray(ret, str, precision);
 }
 
 static void RequireNdArrayInplace(
         const NdArray& lhs, NdArray&& rhs, const std::string& str,
-        std::function<NdArray(const NdArray&, NdArray&&)> f) {
+        std::function<NdArray(const NdArray&, NdArray&&)> f,
+        int precision = -1) {
     uintptr_t l_id = lhs.id();
     uintptr_t r_id = rhs.id();
     const NdArray& ret = f(lhs, std::move(rhs));
     REQUIRE((ret.id() == l_id || ret.id() == r_id));
-    RequireNdArray(ret, str);
+    RequireNdArray(ret, str, precision);
 }
 
 static void RequireNdArrayInplace(
         NdArray&& lhs, const NdArray& rhs, const std::string& str,
-        std::function<NdArray(NdArray&&, const NdArray&)> f) {
+        std::function<NdArray(NdArray&&, const NdArray&)> f,
+        int precision = -1) {
     uintptr_t l_id = lhs.id();
     uintptr_t r_id = rhs.id();
     const NdArray& ret = f(std::move(lhs), rhs);
     REQUIRE((ret.id() == l_id || ret.id() == r_id));
-    RequireNdArray(ret, str);
+    RequireNdArray(ret, str, precision);
 }
 
 static void RequireNdArrayInplace(NdArray&& lhs, float rhs,
                                   const std::string& str,
-                                  std::function<NdArray(NdArray&&, float)> f) {
+                                  std::function<NdArray(NdArray&&, float)> f,
+                                  int precision = -1) {
     uintptr_t l_id = lhs.id();
     const NdArray& ret = f(std::move(lhs), rhs);
     REQUIRE((ret.id() == l_id));
-    RequireNdArray(ret, str);
+    RequireNdArray(ret, str, precision);
 }
 
 static void RequireNdArrayInplace(float lhs, NdArray&& rhs,
                                   const std::string& str,
-                                  std::function<NdArray(float, NdArray&&)> f) {
+                                  std::function<NdArray(float, NdArray&&)> f,
+                                  int precision = -1) {
     uintptr_t r_id = rhs.id();
     const NdArray& ret = f(lhs, std::move(rhs));
     REQUIRE((ret.id() == r_id));
-    RequireNdArray(ret, str);
+    RequireNdArray(ret, str, precision);
 }
 
 static void RequireNdArrayNotInplace(NdArray&& x, const std::string& str,
-                                     std::function<NdArray(const NdArray&)> f) {
+                                     std::function<NdArray(const NdArray&)> f,
+                                     int precision = -1) {
     uintptr_t x_id = x.id();
     const NdArray& y = f(x);
     REQUIRE(y.id() != x_id);
-    RequireNdArray(y, str);
+    RequireNdArray(y, str, precision);
 }
 
 static bool IsSameNdArray(const NdArray& m1, const NdArray& m2) {
@@ -1335,6 +1347,38 @@ TEST_CASE("NdArray") {
         RequireNdArray(Mean(m2, {2, 1}), "[-3.5, 2.5]");
     }
 
+    SECTION("Function Inverse (2d)") {
+        auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
+        auto m2 = Inv(m1);
+        RequireNdArray(m2,
+                       "[[-2, 1],\n"
+                       " [1.5, -0.5]]",
+                       4);  // Low precision
+        RequireNdArray(m1.dot(m2),
+                       "[[1, 0],\n"
+                       " [0, 1]]",
+                       4);  // Low precision
+    }
+
+    SECTION("Function Inverse (high-dim)") {
+        auto m1 = NdArray::Arange(24).reshape(2, 3, 2, 2) + 1.f;
+        auto m2 = Inv(m1);
+        RequireNdArray(m2,
+                       "[[[[-2, 1],\n"
+                       "   [1.5, -0.5]],\n"
+                       "  [[-4, 3],\n"
+                       "   [3.5, -2.5]],\n"
+                       "  [[-6, 5],\n"
+                       "   [5.5, -4.5]]],\n"
+                       " [[[-8, 7],\n"
+                       "   [7.5, -6.5]],\n"
+                       "  [[-10, 9],\n"
+                       "   [9.5, -8.5]],\n"
+                       "  [[-12, 11],\n"
+                       "   [11.5, -10.5]]]]",
+                       4);  // Low precision
+    }
+
     // ----------------------- In-place Operator function ----------------------
     SECTION("Function in-place basic") {
         // In-place
@@ -1635,5 +1679,15 @@ TEST_CASE("NdArray") {
         RequireNdArrayInplace(
                 2.f, NdArray::Arange(3.f) - 1.f, "[2.03444, 1.5708, 1.10715]",
                 static_cast<NdArray (*)(float, NdArray&&)>(ArcTan2));
+    }
+
+    SECTION("Function Inverse (in-place)") {
+        auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
+        auto m2 = Inv(m1);
+        RequireNdArrayInplace(NdArray::Arange(4).reshape(2, 2) + 1.f,
+                              "[[-2, 1],\n"
+                              " [1.5, -0.5]]",
+                              static_cast<NdArray (*)(NdArray &&)>(Inv),
+                              4);  // Low precision
     }
 }
