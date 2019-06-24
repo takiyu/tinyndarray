@@ -763,28 +763,24 @@ template <typename F>
 void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
                           const NdArray::ConstIter& l_data,
                           const NdArray::ConstIter& r_data,
-                          const Shape& ret_shape, const Shape& l_shape,
-                          const Shape& r_shape,
+                          const Shape& ret_shape,
                           const std::vector<int>& ret_child_sizes,
-                          const std::vector<int>& l_child_sizes,
-                          const std::vector<int>& r_child_sizes, size_t depth,
-                          size_t const depth_offset, F op) {
+                          const std::vector<int>& l_steps,
+                          const std::vector<int>& r_steps, const size_t depth,
+                          const size_t depth_offset, F op) {
     if (depth < ret_shape.size() - depth_offset) {
-        // Fetch shapes
-        const int l_s = l_shape[depth];
-        const int r_s = r_shape[depth];
         // Decide pointer steps by broadcast patterns.
-        const int ret_step = ret_child_sizes[depth];
-        const int l_step = (l_s == r_s || r_s == 1) ? l_child_sizes[depth] : 0;
-        const int r_step = (l_s == r_s || l_s == 1) ? r_child_sizes[depth] : 0;
+        const int& ret_step = ret_child_sizes[depth];
+        const int& l_step = l_steps[depth];
+        const int& r_step = r_steps[depth];
         // Applying loop
-        const int n_loop = std::max(l_s, r_s);
+        const int& n_loop = ret_shape[depth];
         for (int i = 0; i < n_loop; i++) {
             // Apply recursively
             ApplyOpBroadcastImpl(ret_data + i * ret_step, l_data + i * l_step,
-                                 r_data + i * r_step, ret_shape, l_shape,
-                                 r_shape, ret_child_sizes, l_child_sizes,
-                                 r_child_sizes, depth + 1, depth_offset, op);
+                                 r_data + i * r_step, ret_shape,
+                                 ret_child_sizes, l_steps, r_steps, depth + 1,
+                                 depth_offset, op);
         }
     } else {
         // Apply operator
@@ -796,6 +792,7 @@ template <typename F>
 void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
                       const size_t depth_offset, F op) {
     const Shape& ret_shape = ret.shape();
+    const size_t n_depth = ret_shape.size();
 
     // Pre-compute padded shape
     const Shape& l_shape_pad = PadShape(lhs.shape(), ret_shape.size());
@@ -806,10 +803,23 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
     const std::vector<int>& l_child_sizes = ComputeChildSizes(l_shape_pad);
     const std::vector<int>& r_child_sizes = ComputeChildSizes(r_shape_pad);
 
+    // Pre-compute steps
+    std::vector<int> l_steps, r_steps;
+    l_steps.reserve(n_depth);
+    r_steps.reserve(n_depth);
+    for (size_t depth = 0; depth < n_depth; depth++) {
+        const int& l_s = l_shape_pad[depth];
+        const int& r_s = r_shape_pad[depth];
+        const int l_step = (l_s == r_s || r_s == 1) ? l_child_sizes[depth] : 0;
+        const int r_step = (l_s == r_s || l_s == 1) ? r_child_sizes[depth] : 0;
+        l_steps.push_back(l_step);
+        r_steps.push_back(r_step);
+    }
+
     // Apply with broadcast
     ApplyOpBroadcastImpl(ret.data(), lhs.data(), rhs.data(), ret_shape,
-                         l_shape_pad, r_shape_pad, ret_child_sizes,
-                         l_child_sizes, r_child_sizes, 0, depth_offset, op);
+                         ret_child_sizes, l_steps, r_steps, 0, depth_offset,
+                         op);
 }
 
 template <typename F>
