@@ -10,6 +10,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <random>
 #include <sstream>
 #include <thread>
