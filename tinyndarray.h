@@ -721,6 +721,11 @@ static Shape CheckBroadcastable(const Shape& l_shape, const Shape& r_shape) {
     }
     // `l_shape.size()` is maximum depth.
 
+    // Check empty
+    if (r_shape.size() == 1 && r_shape[0] == 0) {
+        throw std::runtime_error("Broadcast of empty array");
+    }
+
     // Compute broadcasted shape
     Shape shape(l_shape.size());
     size_t r_offset = l_shape.size() - r_shape.size();
@@ -759,47 +764,63 @@ static Shape PadShape(const Shape& shape, size_t size) {
     return ret_shape;
 }
 
-template <typename F>
+template <std::size_t ret_step, typename F>
 void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
                           const NdArray::ConstIter& l_data,
                           const NdArray::ConstIter& r_data,
                           const Shape& ret_shape,
-                          const std::vector<int>& ret_child_sizes,
                           const std::vector<int>& l_steps,
-                          const std::vector<int>& r_steps, const size_t depth,
-                          const size_t depth_offset, F op) {
-    if (depth < ret_shape.size() - depth_offset) {
-        // Decide pointer steps by broadcast patterns.
-        const int& ret_step = ret_child_sizes[depth];
-        const int& l_step = l_steps[depth];
-        const int& r_step = r_steps[depth];
-        // Applying loop
-        const int& n_loop = ret_shape[depth];
-        for (int i = 0; i < n_loop; i++) {
-            // Apply recursively
-            ApplyOpBroadcastImpl(ret_data + i * ret_step, l_data + i * l_step,
-                                 r_data + i * r_step, ret_shape,
-                                 ret_child_sizes, l_steps, r_steps, depth + 1,
-                                 depth_offset, op);
+                          const std::vector<int>& r_steps, const size_t n_depth,
+                          const int ret_size, F op) {
+    // Create stacks and counter
+    std::vector<int> ret_cnts(n_depth);
+    std::vector<int> l_idx_stack(n_depth), r_idx_stack(n_depth);
+    size_t depth = 0;
+    int l_idx = 0;
+    int r_idx = 0;
+
+    for (int ret_idx = 0; ret_idx < ret_size; ret_idx += ret_step) {
+        // Go down
+        for (; depth < n_depth; depth++) {
+            l_idx_stack[depth] = l_idx;
+            r_idx_stack[depth] = r_idx;
         }
-    } else {
-        // Apply operator
-        op(ret_data, l_data, r_data);
+        depth--;  // restore exceeded depth (n_depth -> n_depth - 1)
+
+        // Operate
+        op(ret_data + ret_idx, l_data + l_idx, r_data + r_idx);
+
+        // Go up and count
+        for (;; depth--) {
+            ret_cnts[depth]++;
+            l_idx += l_steps[depth];
+            r_idx += r_steps[depth];
+            if (ret_cnts[depth] < ret_shape[depth]) {
+                depth++;  // restore exceeded depth (-1 -> 0, 0 -> 1, ...)
+                break;    // continue normally
+            }
+            ret_cnts[depth] = 0;
+            l_idx = l_idx_stack[depth];
+            r_idx = r_idx_stack[depth];
+            if (depth == 0) {
+                break;  // The top of depth
+            }
+        }
     }
 }
 
-template <typename F>
+template <std::size_t ret_step, typename F>
 void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
                       const size_t depth_offset, F op) {
     const Shape& ret_shape = ret.shape();
-    const size_t n_depth = ret_shape.size();
+    const size_t n_depth = ret_shape.size() - depth_offset;
 
     // Pre-compute padded shape
     const Shape& l_shape_pad = PadShape(lhs.shape(), ret_shape.size());
     const Shape& r_shape_pad = PadShape(rhs.shape(), ret_shape.size());
 
     // Pre-compute child sizes
-    const std::vector<int>& ret_child_sizes = ComputeChildSizes(ret_shape);
+    // const std::vector<int>& ret_child_sizes = ComputeChildSizes(ret_shape);
     const std::vector<int>& l_child_sizes = ComputeChildSizes(l_shape_pad);
     const std::vector<int>& r_child_sizes = ComputeChildSizes(r_shape_pad);
 
@@ -816,10 +837,10 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
         r_steps.push_back(r_step);
     }
 
-    // Apply with broadcast
-    ApplyOpBroadcastImpl(ret.data(), lhs.data(), rhs.data(), ret_shape,
-                         ret_child_sizes, l_steps, r_steps, 0, depth_offset,
-                         op);
+    // Call operation loop
+    ApplyOpBroadcastImpl<ret_step>(ret.data(), lhs.data(), rhs.data(),
+                                   ret_shape, l_steps, r_steps, n_depth,
+                                   static_cast<int>(ret.size()), op);
 }
 
 template <typename F>
@@ -844,7 +865,7 @@ NdArray ApplyElemWiseOp(const NdArray& lhs, const NdArray& rhs, F op) {
         const Shape& ret_shape = CheckBroadcastable(lhs.shape(), rhs.shape());
         // Apply broadcast
         NdArray ret(ret_shape);
-        ApplyOpBroadcast(ret, lhs, rhs, 0, WrapOpForIter(op));
+        ApplyOpBroadcast<1>(ret, lhs, rhs, 0, WrapOpForIter(op));
         return ret;
     }
 }
@@ -884,7 +905,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
                                                 "Invalid shape for in-place"
                                                 " operation");
         // Apply broadcast
-        ApplyOpBroadcast(ret, lhs, rhs, 0, WrapOpForIter(op));
+        ApplyOpBroadcast<1>(ret, lhs, rhs, 0, WrapOpForIter(op));
         return std::move(ret);
     }
 }
@@ -906,7 +927,7 @@ NdArray ApplyElemWiseOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
                                 throw std::runtime_error(
                                         "Invalid shape for in-place operation");
         // Apply broadcast (result matrix is lhs)
-        ApplyOpBroadcast(ret, lhs, rhs, 0, WrapOpForIter(op));
+        ApplyOpBroadcast<1>(ret, lhs, rhs, 0, WrapOpForIter(op));
         return std::move(ret);
     }
 }
@@ -1248,17 +1269,16 @@ static void CrossNdArray1d1dShape22(const NdArray::Iter& ret_data,
     ret_data[0] = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-template <typename F>
-NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, int last_size,
-                         F op) {
+template <std::size_t ret_step, typename F>
+NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, F op) {
     const Shape& l_shape = lhs.shape();
     const Shape& r_shape = rhs.shape();
     Shape ret_shape = CheckBroadcastable({l_shape.begin(), l_shape.end() - 1},
                                          {r_shape.begin(), r_shape.end() - 1});
-    ret_shape.push_back(last_size);
+    ret_shape.push_back(ret_step);
     // Apply broadcast
     NdArray ret(ret_shape);
-    ApplyOpBroadcast(ret, lhs, rhs, 1, op);
+    ApplyOpBroadcast<ret_step>(ret, lhs, rhs, 1, op);
     return ret;
 }
 
@@ -1941,13 +1961,13 @@ NdArray NdArray::cross(const NdArray& other) const {
     } else {
         // ND cross
         if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
-            return CrossNdArrayNdMd(lhs, rhs, 3, CrossNdArray1d1dShape33);
+            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape33);
         } else if (l_back == 3 && r_back == 2) {  // [2].cross([3]) -> [3]
-            return CrossNdArrayNdMd(lhs, rhs, 3, CrossNdArray1d1dShape32);
+            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape32);
         } else if (l_back == 2 && r_back == 3) {  // [3].cross([2]) -> [3]
-            return CrossNdArrayNdMd(lhs, rhs, 3, CrossNdArray1d1dShape23);
+            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape23);
         } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
-            auto&& ret = CrossNdArrayNdMd(lhs, rhs, 1, CrossNdArray1d1dShape22);
+            auto&& ret = CrossNdArrayNdMd<1>(lhs, rhs, CrossNdArray1d1dShape22);
             const Shape& ret_shape = ret.shape();  // Remove last dim
             return ret.reshape(Shape{ret_shape.begin(), ret_shape.end() - 1});
         }
