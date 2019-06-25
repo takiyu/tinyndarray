@@ -88,9 +88,9 @@ TEST_CASE("NdArray") {
         std::cout << "             " << t2_multi << " ms" << std::endl;
         std::cout << "             " << t3_multi << " ms" << std::endl;
 
-        REQUIRE(t1_multi < t1_single);
-        REQUIRE(t2_multi < t2_single);
-        REQUIRE(t3_multi < t3_single);
+        CHECK(t1_multi < t1_single);
+        CHECK(t2_multi < t2_single);
+        CHECK(t3_multi < t3_single);
     }
 
     SECTION("Simple op (2 args)") {
@@ -145,9 +145,9 @@ TEST_CASE("NdArray") {
         std::cout << "             " << t2_multi << " ms" << std::endl;
         std::cout << "             " << t3_multi << " ms" << std::endl;
 
-        REQUIRE(t1_multi < t1_single);
-        REQUIRE(t2_multi < t2_single);
-        REQUIRE(t3_multi < t3_single);
+        CHECK(t1_multi < t1_single);
+        CHECK(t2_multi < t2_single);
+        CHECK(t3_multi < t3_single);
     }
 
     SECTION("Broadcast op") {
@@ -202,8 +202,8 @@ TEST_CASE("NdArray") {
         std::cout << "             " << t2_multi << " ms" << std::endl;
         std::cout << "             " << t3_multi << " ms" << std::endl;
 
-        //         REQUIRE(t1_multi < t1_single);
-        //         REQUIRE(t2_multi < t2_single);
-        //         REQUIRE(t3_multi < t3_single);
+        //         CHECK(t1_multi < t1_single);
+        //         CHECK(t2_multi < t2_single);
+        //         CHECK(t3_multi < t3_single);
     }
 }
