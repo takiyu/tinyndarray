@@ -817,14 +817,15 @@ template <std::size_t ret_step, typename F>
 void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
                           const NdArray::ConstIter& l_data,
                           const NdArray::ConstIter& r_data,
-                          const Shape& ret_shape,
+                          const Shape& ret_shape, const int ret_size,
                           const std::vector<int>& l_steps,
-                          const std::vector<int>& r_steps, const size_t n_depth,
-                          const int ret_size, F op) {
+                          const std::vector<int>& r_steps,
+                          const size_t start_depth, const size_t n_depth,
+                          F op) {
     // Create stacks and counter
     std::vector<int> ret_cnts(n_depth);
     std::vector<int> l_idx_stack(n_depth), r_idx_stack(n_depth);
-    size_t depth = 0;
+    size_t depth = start_depth;
     int l_idx = 0;
     int r_idx = 0;
 
@@ -839,7 +840,7 @@ void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
         op(ret_data + ret_idx, l_data + l_idx, r_data + r_idx);
 
         // Go up and count
-        for (; 0 < depth; depth--) {
+        for (; start_depth < depth; depth--) {
             const size_t prev_d = depth - 1;
             ret_cnts[prev_d]++;        // Count up
             l_idx += l_steps[prev_d];  // Forward index
@@ -869,7 +870,7 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
             ReduceShapes(ret_shape, l_shape, r_shape, depth_offset);
 
     // Pre-compute child sizes
-    // const std::vector<int>& ret_child_sizes = ComputeChildSizes(ret_shape);
+    const std::vector<int>& ret_child_sizes = ComputeChildSizes(ret_shape);
     const std::vector<int>& l_child_sizes = ComputeChildSizes(l_shape);
     const std::vector<int>& r_child_sizes = ComputeChildSizes(r_shape);
 
@@ -886,10 +887,22 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
         r_steps.push_back(r_step);
     }
 
+#if 1
+    // Call operation loop in parallel
+    RunParallel(static_cast<size_t>(ret_shape[0]), [&](int i) {
+        const int ret_size = static_cast<int>(ret.size()) / ret_shape[0];
+        ApplyOpBroadcastImpl<ret_step>(ret.data() + ret_child_sizes[0] * i,
+                                       lhs.data() + l_steps[0] * i,
+                                       rhs.data() + r_steps[0] * i, ret_shape,
+                                       ret_size, l_steps, r_steps, 1, n_depth,
+                                       op);
+    });
+#else
     // Call operation loop
     ApplyOpBroadcastImpl<ret_step>(ret.data(), lhs.data(), rhs.data(),
-                                   ret_shape, l_steps, r_steps, n_depth,
-                                   static_cast<int>(ret.size()), op);
+                                   ret_shape, static_cast<int>(ret.size()),
+                                   l_steps, r_steps, 0, n_depth, op);
+#endif
 }
 
 template <typename F>
