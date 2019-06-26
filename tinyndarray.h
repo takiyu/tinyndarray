@@ -765,6 +765,53 @@ static Shape PadShape(const Shape& shape, size_t size) {
     return ret_shape;
 }
 
+static size_t ReduceShapes(Shape& ret_shape, Shape& l_shape, Shape& r_shape,
+                           const size_t depth_offset) {
+    // Require `ret_shape.size() == l_shape.size() == r_shape.size()`
+
+    // Remove meaningless dimensions.
+    Shape ret_shape_cleaned, l_shape_cleaned, r_shape_cleaned;
+    int size_pool = 1;
+    size_t depth = 0;
+    for (; depth < ret_shape.size() - depth_offset; depth++) {
+        if (l_shape[depth] == r_shape[depth]) {
+            // Store
+            size_pool *= l_shape[depth];
+        } else {
+            // Pop
+            if (size_pool != 1) {
+                ret_shape_cleaned.push_back(size_pool);
+                l_shape_cleaned.push_back(size_pool);
+                r_shape_cleaned.push_back(size_pool);
+                size_pool = 1;
+            }
+            // Through current dimension
+            ret_shape_cleaned.push_back(ret_shape[depth]);
+            l_shape_cleaned.push_back(l_shape[depth]);
+            r_shape_cleaned.push_back(r_shape[depth]);
+        }
+    }
+    // Pop
+    if (size_pool != 1) {
+        ret_shape_cleaned.push_back(size_pool);
+        l_shape_cleaned.push_back(size_pool);
+        r_shape_cleaned.push_back(size_pool);
+    }
+    // Store actual depth count
+    const size_t n_depth = ret_shape_cleaned.size();
+    // Pass through included in `depth_offset`.
+    for (; depth < ret_shape.size(); depth++) {
+        ret_shape_cleaned.push_back(ret_shape[depth]);
+        l_shape_cleaned.push_back(l_shape[depth]);
+        r_shape_cleaned.push_back(r_shape[depth]);
+    }
+    // Return
+    ret_shape = std::move(ret_shape_cleaned);
+    l_shape = std::move(l_shape_cleaned);
+    r_shape = std::move(r_shape_cleaned);
+    return n_depth;
+}
+
 template <std::size_t ret_step, typename F>
 void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
                           const NdArray::ConstIter& l_data,
@@ -783,29 +830,26 @@ void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
     for (int ret_idx = 0; ret_idx < ret_size; ret_idx += ret_step) {
         // Go down
         for (; depth < n_depth; depth++) {
-            l_idx_stack[depth] = l_idx;
+            l_idx_stack[depth] = l_idx;  // Push stack
             r_idx_stack[depth] = r_idx;
         }
-        depth--;  // restore exceeded depth (n_depth -> n_depth - 1)
 
         // Operate
         op(ret_data + ret_idx, l_data + l_idx, r_data + r_idx);
 
         // Go up and count
-        for (;; depth--) {
-            ret_cnts[depth]++;
-            l_idx += l_steps[depth];
-            r_idx += r_steps[depth];
-            if (ret_cnts[depth] < ret_shape[depth]) {
-                depth++;  // restore exceeded depth (-1 -> 0, 0 -> 1, ...)
-                break;    // continue normally
+        for (; 0 < depth; depth--) {
+            const size_t prev_d = depth - 1;
+            ret_cnts[prev_d]++;        // Count up
+            l_idx += l_steps[prev_d];  // Forward index
+            r_idx += r_steps[prev_d];
+            if (ret_cnts[prev_d] < ret_shape[prev_d]) {
+                break;  // Continue normally
             }
-            ret_cnts[depth] = 0;
-            l_idx = l_idx_stack[depth];
-            r_idx = r_idx_stack[depth];
-            if (depth == 0) {
-                break;  // The top of depth
-            }
+            // Go upper depth
+            ret_cnts[prev_d] = 0;         // Clear count
+            l_idx = l_idx_stack[prev_d];  // Pop stack
+            r_idx = r_idx_stack[prev_d];
         }
     }
 }
@@ -813,25 +857,28 @@ void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
 template <std::size_t ret_step, typename F>
 void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
                       const size_t depth_offset, F op) {
-    const Shape& ret_shape = ret.shape();
-    const size_t n_depth = ret_shape.size() - depth_offset;
+    Shape ret_shape = ret.shape();
 
-    // Pre-compute padded shape
-    const Shape& l_shape_pad = PadShape(lhs.shape(), ret_shape.size());
-    const Shape& r_shape_pad = PadShape(rhs.shape(), ret_shape.size());
+    // Pre-compute padded shapes
+    Shape l_shape = PadShape(lhs.shape(), ret_shape.size());
+    Shape r_shape = PadShape(rhs.shape(), ret_shape.size());
+
+    // Pre-compute reduced shapes
+    const size_t n_depth =
+            ReduceShapes(ret_shape, l_shape, r_shape, depth_offset);
 
     // Pre-compute child sizes
     // const std::vector<int>& ret_child_sizes = ComputeChildSizes(ret_shape);
-    const std::vector<int>& l_child_sizes = ComputeChildSizes(l_shape_pad);
-    const std::vector<int>& r_child_sizes = ComputeChildSizes(r_shape_pad);
+    const std::vector<int>& l_child_sizes = ComputeChildSizes(l_shape);
+    const std::vector<int>& r_child_sizes = ComputeChildSizes(r_shape);
 
     // Pre-compute steps
     std::vector<int> l_steps, r_steps;
     l_steps.reserve(n_depth);
     r_steps.reserve(n_depth);
     for (size_t depth = 0; depth < n_depth; depth++) {
-        const int& l_s = l_shape_pad[depth];
-        const int& r_s = r_shape_pad[depth];
+        const int& l_s = l_shape[depth];
+        const int& r_s = r_shape[depth];
         const int l_step = (l_s == r_s || r_s == 1) ? l_child_sizes[depth] : 0;
         const int r_step = (l_s == r_s || l_s == 1) ? r_child_sizes[depth] : 0;
         l_steps.push_back(l_step);
