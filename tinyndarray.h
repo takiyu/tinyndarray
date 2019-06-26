@@ -26,13 +26,6 @@ using SliceIndex = std::vector<std::pair<int, int>>;
 using Axes = std::vector<int>;
 
 // =============================================================================
-// =========================== Parallel Configuration ==========================
-// =============================================================================
-// The number of workers. To disable parallel execution, please set `1`.
-static int N_WORKERS = -1;
-static int BATCH_SCALE = 4;
-
-// =============================================================================
 // ======================= Nested Float Initializer List =======================
 // =============================================================================
 template <std::size_t D>
@@ -100,6 +93,11 @@ public:
                           const Shape& shape = {1});
     static NdArray Normal(const Shape& shape);
 
+    static int GetNumWorkers();
+    static void SetNumWorkers(int n_workers);  // -1: Hardware Concurrency
+    static int GetBatchScale();
+    static void SetBatchScale(int batch_scale);
+
     uintptr_t id() const;
     bool empty() const;
     size_t size() const;
@@ -154,6 +152,9 @@ private:
 
     static std::random_device s_rand_seed;
     static std::mt19937 s_rand_engine;
+
+    static int s_n_workers;
+    static int s_batch_scale;
 };
 
 // --------------------------------- Iterator ----------------------------------
@@ -497,13 +498,13 @@ inline auto ReverseOp(F op) {
 template <typename F>
 void RunParallel(size_t size, F op) {
     // Fetch the number of workers
-    int n_workers = N_WORKERS;
+    int n_workers = NdArray::GetNumWorkers();
     if (n_workers <= 0) {
         n_workers = static_cast<int>(std::thread::hardware_concurrency());
     }
 
     const int size_i = static_cast<int>(size);
-    const int n_batch = n_workers * BATCH_SCALE;
+    const int n_batch = n_workers * NdArray::GetBatchScale();
     const int batch_size = size_i / n_batch + (size_i % n_batch ? 1 : 0);
     n_workers = std::min(n_workers, batch_size);
 
@@ -1589,6 +1590,8 @@ bool NdArray::ConstIter::operator!=(const ConstIter& other) const {
 // ------------------------------- Static Member -------------------------------
 std::random_device NdArray::s_rand_seed;
 std::mt19937 NdArray::s_rand_engine(s_rand_seed());
+int NdArray::s_n_workers = -1;
+int NdArray::s_batch_scale = 4;
 
 // -------------------- Constructors with Float Initializers -------------------
 NdArray::NdArray(FloatList<0> init_list) : NdArray(CheckFListShape(init_list)) {
@@ -1695,6 +1698,7 @@ NdArray NdArray::Arange(float start, float stop, float step) {
     return ret;
 }
 
+// ------------------------- Static Methods for Random -------------------------
 void NdArray::Seed() {
     s_rand_engine = std::mt19937(s_rand_seed());
 }
@@ -1723,6 +1727,23 @@ NdArray NdArray::Normal(float loc, float scale, const Shape& shape) {
 
 NdArray NdArray::Normal(const Shape& shape) {
     return Normal(0.f, 1.f, shape);
+}
+
+// ------------------------ Static Methods for Parallel ------------------------
+int NdArray::GetNumWorkers() {
+    return s_n_workers;
+}
+
+void NdArray::SetNumWorkers(int n_workers) {
+    s_n_workers = n_workers;
+}
+
+int NdArray::GetBatchScale() {
+    return s_batch_scale;
+}
+
+void NdArray::SetBatchScale(int batch_scale) {
+    s_batch_scale = batch_scale;
 }
 
 // ------------------------------- Basic Methods -------------------------------

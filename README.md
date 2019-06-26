@@ -376,9 +376,9 @@ When changing the number of workers, please set `N_WORKERS`.
 
 ```
 // Default setting. Use all of cores.
-tinyndarray::N_WORKERS = -1;
+tinyndarray::NdArray::SetNumWorkers(-1);
 // Set no parallel.
-tinyndarray::N_WORKERS = 1;
+tinyndarray::NdArray::SetNumWorkers(1);
 // Use 4 cores
-tinyndarray::N_WORKERS = 4;
+tinyndarray::NdArray::SetNumWorkers(4);
 ```

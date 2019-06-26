@@ -45,7 +45,7 @@ TEST_CASE("NdArray") {
         auto m1_cao2 = NdArray::Arange(WH);
 
         // Single thread
-        N_WORKERS = 1;
+        NdArray::SetNumWorkers(1);
         // Basic
         g_timer.start();
         auto ret1_single = m1 + 1.f;
@@ -63,7 +63,7 @@ TEST_CASE("NdArray") {
         const float t3_single = g_timer.getElapsedMsec();
 
         // Multi thread
-        N_WORKERS = -1;
+        NdArray::SetNumWorkers(-1);
         // Basic
         g_timer.start();
         auto ret1_multi = m1 + 1.f;
@@ -102,7 +102,7 @@ TEST_CASE("NdArray") {
         auto m2 = NdArray::Zeros(WH);
 
         // Single thread
-        N_WORKERS = 1;
+        NdArray::SetNumWorkers(1);
         // Basic
         g_timer.start();
         auto ret1_single = m1 + m2;
@@ -120,7 +120,7 @@ TEST_CASE("NdArray") {
         const float t3_single = g_timer.getElapsedMsec();
 
         // Multi thread
-        N_WORKERS = -1;
+        NdArray::SetNumWorkers(-1);
         // Basic
         g_timer.start();
         auto ret1_multi = m1 + m2;
@@ -159,7 +159,7 @@ TEST_CASE("NdArray") {
         auto m2 = NdArray::Zeros(W);
 
         // Single thread
-        N_WORKERS = 1;
+        NdArray::SetNumWorkers(1);
         // Basic
         g_timer.start();
         auto ret1_single = m1 + m2;
@@ -177,7 +177,7 @@ TEST_CASE("NdArray") {
         const float t3_single = g_timer.getElapsedMsec();
 
         // Multi thread
-        N_WORKERS = -1;
+        NdArray::SetNumWorkers(-1);
         // Basic
         g_timer.start();
         auto ret1_multi = m1 + m2;
