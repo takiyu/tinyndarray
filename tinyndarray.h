@@ -1472,8 +1472,8 @@ bool NdArray::Iter::operator!=(const Iter& other) const {
     return p != other.p;
 }
 
-NdArray::Iter::operator ConstIter() const {
-    return ConstIter{parent, p};
+NdArray::Iter::operator NdArray::ConstIter() const {
+    return NdArray::ConstIter{parent, p};
 }
 
 // ------------------------------ Const Iterator -------------------------------
@@ -2743,8 +2743,7 @@ NdArray Mean(const NdArray& x, const Axes& axes) {
         return {std::numeric_limits<float>::quiet_NaN()};
     }
     auto&& sum = Sum(x, axes);
-    float denom = x.size() / sum.size();
-    return sum / denom;
+    return sum / static_cast<float>(x.size() / sum.size());
 }
 
 // Inverse
