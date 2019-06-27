@@ -1218,11 +1218,11 @@ static NdArray DotNdArray1d(const NdArray& lhs, const NdArray& rhs) {
     return {sum};
 }
 
-inline void DotNdArray1d2dImpl(const NdArray::Iter& ret_data,
-                               const NdArray::ConstIter& l_data,
-                               const NdArray::ConstIter& r_data,
-                               const int n_col, const int n_contract) {
-    int ret_idx = 0;
+void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
+                                const NdArray::ConstIter& l_data,
+                                const NdArray::ConstIter& r_data,
+                                const int n_col, const int n_contract) {
+    // Row-major dot product
     for (int col_cnt = 0; col_cnt < n_col; col_cnt++) {
         float sum = 0.f;
         int r_idx = col_cnt;
@@ -1230,8 +1230,35 @@ inline void DotNdArray1d2dImpl(const NdArray::Iter& ret_data,
             sum += l_data[l_idx] * r_data[r_idx];
             r_idx += n_col;
         }
-        ret_data[ret_idx] = sum;
-        ret_idx++;
+        ret_data[col_cnt] = sum;
+    }
+}
+
+void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
+                                const NdArray::ConstIter& l_data,
+                                const NdArray::ConstIter& r_data,
+                                const int n_col, const int n_contract) {
+    // Zero initialization
+    std::fill_n(ret_data, n_col, 0.f);
+    // Col-major dot product
+    int r_idx = 0;
+    for (int l_idx = 0; l_idx < n_contract; l_idx++) {
+        for (int col_cnt = 0; col_cnt < n_col; col_cnt++) {
+            ret_data[col_cnt] += l_data[l_idx] * r_data[r_idx];
+            r_idx++;
+        }
+    }
+}
+
+inline void DotNdArray1d2dImpl(const NdArray::Iter& ret_data,
+                               const NdArray::ConstIter& l_data,
+                               const NdArray::ConstIter& r_data,
+                               const int n_col, const int n_contract) {
+    // Switch row-major and col-major
+    if (n_col < n_contract) { // TODO: Invalid
+        DotNdArray1d2dImplRowMajor(ret_data, l_data, r_data, n_col, n_contract);
+    } else {
+        DotNdArray1d2dImplColMajor(ret_data, l_data, r_data, n_col, n_contract);
     }
 }
 
