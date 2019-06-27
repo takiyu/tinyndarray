@@ -1218,6 +1218,38 @@ static NdArray DotNdArray1d(const NdArray& lhs, const NdArray& rhs) {
     return {sum};
 }
 
+inline void DotNdArray1d2dImpl(const NdArray::Iter& ret_data,
+                               const NdArray::ConstIter& l_data,
+                               const NdArray::ConstIter& r_data,
+                               const int n_col, const int n_contract) {
+    int ret_idx = 0;
+    for (int col_cnt = 0; col_cnt < n_col; col_cnt++) {
+        float sum = 0.f;
+        int r_idx = col_cnt;
+        for (int l_idx = 0; l_idx < n_contract; l_idx++) {
+            sum += l_data[l_idx] * r_data[r_idx];
+            r_idx += n_col;
+        }
+        ret_data[ret_idx] = sum;
+        ret_idx++;
+    }
+}
+
+static void DotNdArray2dImpl(const NdArray::Iter& ret_data,
+                             const NdArray::ConstIter& l_data,
+                             const NdArray::ConstIter& r_data,
+                             const int n_row, const int n_col,
+                             const int n_contract) {
+    int ret_idx = 0;
+    int l_idx = 0;
+    for (int row_cnt = 0; row_cnt < n_row; row_cnt++) {
+        DotNdArray1d2dImpl(ret_data + ret_idx, l_data + l_idx, r_data, n_col,
+                           n_contract);
+        l_idx += n_contract;
+        ret_idx += n_col;
+    }
+}
+
 static NdArray DotNdArray2d(const NdArray& lhs, const NdArray& rhs) {
     const Shape& l_shape = lhs.shape();  // 2 == size
     const Shape& r_shape = rhs.shape();  // 2 == size
@@ -1225,34 +1257,22 @@ static NdArray DotNdArray2d(const NdArray& lhs, const NdArray& rhs) {
         throw std::runtime_error("Invalid size for inner product of 2D");
     }
     // Inner product of 2D matrix
-    const int n_row = l_shape[0];
-    const int n_col = r_shape[1];
-    const int n_contract = l_shape[1];
-    const int& n_l_col = n_contract;
-    const int& n_r_col = n_col;
+    const int& n_row = l_shape[0];
+    const int& n_col = r_shape[1];
+    const int& n_contract = l_shape[1];  // == r_shape[0]
     NdArray ret({n_row, n_col});
-    auto&& ret_data = ret.data();
-    auto&& l_data = lhs.data();
-    auto&& r_data = rhs.data();
-    for (int row_idx = 0; row_idx < n_row; row_idx++) {
-        for (int col_idx = 0; col_idx < n_col; col_idx++) {
-            float sum = 0.f;
-            for (int i = 0; i < n_contract; i++) {
-                sum += l_data[row_idx * n_l_col + i] *
-                       r_data[i * n_r_col + col_idx];
-            }
-            *(ret_data++) = sum;
-        }
-    }
+    DotNdArray2dImpl(ret.data(), lhs.data(), rhs.data(), n_row, n_col,
+                     n_contract);
     return ret;
 }
 
 static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
-    const Shape& l_shape = lhs.shape();  // 1 <= size
-    const Shape& r_shape = rhs.shape();  // 2 <= size
+    const Shape& l_shape = lhs.shape();  // 1 <= l.size
+    const Shape& r_shape = rhs.shape();  // 2 <= r.size
 
     // The last axis of left and the second-to-last axis of right must be same.
-    if (l_shape[l_shape.size() - 1] != r_shape[r_shape.size() - 2]) {
+    const int n_contract = l_shape.end()[-1];
+    if (n_contract != r_shape.end()[-2]) {
         throw std::runtime_error("Invalid shape for dot product");
     }
 
@@ -1260,39 +1280,40 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
     Shape ret_shape(l_shape.begin(), l_shape.end() - 1);
     ret_shape.insert(ret_shape.end(), r_shape.begin(), r_shape.end() - 2);
     ret_shape.push_back(r_shape.back());
-
-    // Compute child sizes
-    //   [2, 3, (4)] [5, 6, (4), 7] -> [2, 3, 5, 6, 7]
-    const int ret_child_size_2 = std::accumulate(
-            ret_shape.begin() + static_cast<long>(l_shape.size()) - 1,
-            ret_shape.end(), 1, std::multiplies<int>());  // [(5), (6), 4, (7)]
-    const int ret_child_size_1 = ret_shape.back();        // [5, 6, 4, (7)]
-    const int l_child_size = l_shape.back();              // [2, 3, (4)]
-    const int r_child_size_2 =
-            r_shape.end()[-1] * r_shape.end()[-2];  // [5, 6, (4), (7)]
-    const int r_child_size_1 = ret_child_size_1;    // [2, 3, (4)]
-
-    // Basic matrix product
+    // Result array
     NdArray ret(ret_shape);
-    const int n_ret = static_cast<int>(ret.size());
-    const int n_contract = l_child_size;
+
+    // Compute 2D shapes and steps
+    //   [2, 3, (4)] [5, 6, (4), 7] -> [2, 3, 5, 6, 7]
+    const int n_col = r_shape.end()[-1];
+    const int l_step = n_contract;          // [2, 3, <4>]
+    const int r_step = n_contract * n_col;  // [5, 6, <4>, <7>]
+    const int ret_step = n_col;             // [2, 3, 5, 6, <7>]
+
+    const int n_l = static_cast<int>(lhs.size()) / l_step;
+    const int n_r = static_cast<int>(rhs.size()) / r_step;
+    const int& ret_idx_base = n_r;  // [<5>, <6>, 4, 7]
+
     auto&& ret_data = ret.data();
     auto&& l_data = lhs.data();
     auto&& r_data = rhs.data();
-    for (int ret_idx = 0; ret_idx < n_ret; ret_idx++) {
-        // Compute left/right index from `ret_idx`
-        const int l_idx = (ret_idx / ret_child_size_2) * l_child_size;
-        const int r_idx_2 = (ret_idx % ret_child_size_2) / ret_child_size_1;
-        const int r_idx_1 = ret_idx % ret_child_size_1;
-        const int r_idx = (r_idx_2 * r_child_size_2) + r_idx_1;
-        // Sum up
-        float sum = 0.f;
-        for (int i = 0; i < n_contract; i++) {
-            sum += l_data[l_idx + i] * r_data[r_idx + (i * r_child_size_1)];
+
+    // Dot product
+    int l_idx = 0;
+    int ret_idx0 = 0;
+    for (int l_cnt = 0; l_cnt < n_l; l_cnt++) {
+        int r_idx = 0;
+        int ret_idx = ret_idx0 * ret_step;
+        for (int r_cnt = 0; r_cnt < n_r; r_cnt++) {
+            DotNdArray1d2dImpl(ret_data + ret_idx, l_data + l_idx,
+                               r_data + r_idx, n_col, n_contract);
+            r_idx += r_step;
+            ret_idx += ret_step;
         }
-        // Register
-        ret_data[ret_idx] = sum;
+        l_idx += l_step;
+        ret_idx0 += ret_idx_base;
     }
+
     return ret;
 }
 
