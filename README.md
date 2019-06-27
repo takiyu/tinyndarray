@@ -359,7 +359,7 @@ However, even right-reference values are passed, when the size is changed by bro
    auto a = NdArray::Ones(2, 1, 3);
    auto a = NdArray::Ones(3, 1);
    auto a_id = a.id();
-   a = np.exp(a);  // not in-place
+   a = np.exp(srd::move(a));  // looks like in-place
    std::cout << a.shape()
              << std::endl;  // [2, 3, 3]
    std::cout << (a.id() == a_id)
