@@ -891,11 +891,10 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
     // Call operation loop in parallel
     RunParallel(static_cast<size_t>(ret_shape[0]), [&](int i) {
         const int ret_size = static_cast<int>(ret.size()) / ret_shape[0];
-        ApplyOpBroadcastImpl<ret_step>(ret.data() + ret_child_sizes[0] * i,
-                                       lhs.data() + l_steps[0] * i,
-                                       rhs.data() + r_steps[0] * i, ret_shape,
-                                       ret_size, l_steps, r_steps, 1, n_depth,
-                                       op);
+        ApplyOpBroadcastImpl<ret_step>(
+                ret.data() + ret_child_sizes[0] * i,
+                lhs.data() + l_steps[0] * i, rhs.data() + r_steps[0] * i,
+                ret_shape, ret_size, l_steps, r_steps, 1, n_depth, op);
     });
 #else
     // Call operation loop
@@ -1218,22 +1217,6 @@ static NdArray DotNdArray1d(const NdArray& lhs, const NdArray& rhs) {
     return {sum};
 }
 
-void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
-                                const NdArray::ConstIter& l_data,
-                                const NdArray::ConstIter& r_data,
-                                const int n_col, const int n_contract) {
-    // Row-major dot product
-    for (int col_cnt = 0; col_cnt < n_col; col_cnt++) {
-        float sum = 0.f;
-        int r_idx = col_cnt;
-        for (int l_idx = 0; l_idx < n_contract; l_idx++) {
-            sum += l_data[l_idx] * r_data[r_idx];
-            r_idx += n_col;
-        }
-        ret_data[col_cnt] = sum;
-    }
-}
-
 void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
                                 const NdArray::ConstIter& l_data,
                                 const NdArray::ConstIter& r_data,
@@ -1250,28 +1233,40 @@ void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
     }
 }
 
-inline void DotNdArray1d2dImpl(const NdArray::Iter& ret_data,
-                               const NdArray::ConstIter& l_data,
-                               const NdArray::ConstIter& r_data,
-                               const int n_col, const int n_contract) {
-    // Switch row-major and col-major
-    if (n_col < n_contract) { // TODO: Invalid
-        DotNdArray1d2dImplRowMajor(ret_data, l_data, r_data, n_col, n_contract);
-    } else {
-        DotNdArray1d2dImplColMajor(ret_data, l_data, r_data, n_col, n_contract);
+void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
+                                const NdArray::ConstIter& l_data,
+                                const NdArray::ConstIter& r_data,
+                                const int n_col, const int n_contract) {
+    // Row-major dot product
+    for (int col_cnt = 0; col_cnt < n_col; col_cnt++) {
+        float sum = 0.f;
+        int r_idx = col_cnt;
+        for (int l_idx = 0; l_idx < n_contract; l_idx++) {
+            sum += l_data[l_idx] * r_data[r_idx];
+            r_idx += n_col;
+        }
+        ret_data[col_cnt] = sum;
     }
 }
 
-static void DotNdArray2dImpl(const NdArray::Iter& ret_data,
-                             const NdArray::ConstIter& l_data,
-                             const NdArray::ConstIter& r_data,
-                             const int n_row, const int n_col,
-                             const int n_contract) {
+static auto SelectDot1d2dOp(const size_t l_size, const size_t r_size) {
+    // Switch row-major and col-major
+    if (l_size < r_size) {
+        return DotNdArray1d2dImplColMajor;
+    } else {
+        return DotNdArray1d2dImplRowMajor;
+    }
+}
+
+template <typename F1d2d>
+void DotNdArray2dImpl(const NdArray::Iter& ret_data,
+                      const NdArray::ConstIter& l_data,
+                      const NdArray::ConstIter& r_data, const int n_row,
+                      const int n_col, const int n_contract, F1d2d op_1d2d) {
     int ret_idx = 0;
     int l_idx = 0;
     for (int row_cnt = 0; row_cnt < n_row; row_cnt++) {
-        DotNdArray1d2dImpl(ret_data + ret_idx, l_data + l_idx, r_data, n_col,
-                           n_contract);
+        op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data, n_col, n_contract);
         l_idx += n_contract;
         ret_idx += n_col;
     }
@@ -1289,8 +1284,33 @@ static NdArray DotNdArray2d(const NdArray& lhs, const NdArray& rhs) {
     const int& n_contract = l_shape[1];  // == r_shape[0]
     NdArray ret({n_row, n_col});
     DotNdArray2dImpl(ret.data(), lhs.data(), rhs.data(), n_row, n_col,
-                     n_contract);
+                     n_contract, SelectDot1d2dOp(lhs.size(), lhs.size()));
     return ret;
+}
+
+template <typename F1d2d>
+void DotNdArrayNdMdImpl(const NdArray::Iter& ret_data,
+                        const NdArray::ConstIter& l_data,
+                        const NdArray::ConstIter& r_data, const int n_l,
+                        const int n_r, const int ret_step, const int l_step,
+                        const int r_step, F1d2d op_1d2d) {
+    const int& n_contract = l_step;
+    const int& n_col = ret_step;
+    const int& ret_idx_base = n_r;
+    int l_idx = 0;
+    int ret_idx0 = 0;
+    for (int l_cnt = 0; l_cnt < n_l; l_cnt++) {
+        int r_idx = 0;
+        int ret_idx = ret_idx0 * ret_step;
+        for (int r_cnt = 0; r_cnt < n_r; r_cnt++) {
+            op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data + r_idx, n_col,
+                    n_contract);
+            r_idx += r_step;
+            ret_idx += ret_step;
+        }
+        l_idx += l_step;
+        ret_idx0 += ret_idx_base;
+    }
 }
 
 static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
@@ -1312,34 +1332,16 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
 
     // Compute 2D shapes and steps
     //   [2, 3, (4)] [5, 6, (4), 7] -> [2, 3, 5, 6, 7]
-    const int n_col = r_shape.end()[-1];
-    const int l_step = n_contract;          // [2, 3, <4>]
-    const int r_step = n_contract * n_col;  // [5, 6, <4>, <7>]
-    const int ret_step = n_col;             // [2, 3, 5, 6, <7>]
+    const int ret_step = r_shape.end()[-1];    // [2, 3, 5, 6, <7>]
+    const int l_step = n_contract;             // [2, 3, <4>]
+    const int r_step = n_contract * ret_step;  // [5, 6, <4>, <7>]
 
     const int n_l = static_cast<int>(lhs.size()) / l_step;
-    const int n_r = static_cast<int>(rhs.size()) / r_step;
-    const int& ret_idx_base = n_r;  // [<5>, <6>, 4, 7]
-
-    auto&& ret_data = ret.data();
-    auto&& l_data = lhs.data();
-    auto&& r_data = rhs.data();
+    const int n_r = static_cast<int>(rhs.size()) / r_step;  // [<5>, <6>, 4, 7]
 
     // Dot product
-    int l_idx = 0;
-    int ret_idx0 = 0;
-    for (int l_cnt = 0; l_cnt < n_l; l_cnt++) {
-        int r_idx = 0;
-        int ret_idx = ret_idx0 * ret_step;
-        for (int r_cnt = 0; r_cnt < n_r; r_cnt++) {
-            DotNdArray1d2dImpl(ret_data + ret_idx, l_data + l_idx,
-                               r_data + r_idx, n_col, n_contract);
-            r_idx += r_step;
-            ret_idx += ret_step;
-        }
-        l_idx += l_step;
-        ret_idx0 += ret_idx_base;
-    }
+    DotNdArrayNdMdImpl(ret.data(), lhs.data(), rhs.data(), n_l, n_r, ret_step,
+                       l_step, r_step, SelectDot1d2dOp(lhs.size(), rhs.size()));
 
     return ret;
 }
