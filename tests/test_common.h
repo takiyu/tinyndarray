@@ -91,10 +91,10 @@ static bool IsSameNdArray(const NdArray& m1, const NdArray& m2) {
     if (m1.shape() != m2.shape()) {
         return false;
     }
-    auto data1 = m1.data();
-    auto data2 = m2.data();
-    for (size_t i = 0; i < m1.size(); i++) {
-        if (*(data1++) != *(data2++)) {
+    auto&& data1 = m1.data();
+    auto&& data2 = m2.data();
+    for (int i = 0; i < static_cast<int>(m1.size()); i++) {
+        if (data1[i] != data2[i]) {
             return false;
         }
     }

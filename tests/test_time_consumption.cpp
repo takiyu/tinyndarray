@@ -5,6 +5,7 @@
 #include "../tinyndarray.h"
 
 #include <chrono>
+#include <functional>
 
 using namespace tinyndarray;
 
@@ -34,230 +35,167 @@ private:
     std::chrono::system_clock::time_point m_start, m_end;
 };
 
-Timer g_timer;
+static Timer g_timer;
+
+static auto MeasureOpTime(std::function<NdArray()> op) {
+    g_timer.start();
+    auto&& ret = op();
+    g_timer.end();
+    return std::tuple<float, NdArray>(g_timer.getElapsedMsec(), std::move(ret));
+}
+
+template <typename... T>
+auto SplitRetItems(T... items) {
+    return std::tuple<std::vector<float>, std::vector<NdArray>>(
+            {std::get<0>(items)...}, {std::get<1>(items)...});
+}
+
+static void PrintTimeResult(const std::string& tag,
+                            const std::vector<float>& times,
+                            const int time_width) {
+    std::cout << "  * " << tag << "  : ";
+    std::cout << std::setw(time_width) << times[0] << " ms";
+    for (size_t i = 1; i < times.size(); i++) {
+        std::cout << ", " << std::setw(time_width) << times[i] << " ms";
+    }
+    std::cout << std::endl;
+}
+
+static void CheckSameNdArray(const NdArray& m1, const NdArray& m2) {
+    CHECK(m1.shape() == m2.shape());
+    auto&& data1 = m1.data();
+    auto&& data2 = m2.data();
+    for (int i = 0; i < static_cast<int>(m1.size()); i++) {
+        CHECK(data1[i] == Approx(data2[i]));
+    }
+}
+
+template <typename F, typename... OP>
+void TestSingleMultiThread(const std::string& tag, F prep_func, OP... ops) {
+    static_assert(0 < sizeof...(ops), "No operation");
+
+    // Print title
+    std::cout << "* " << tag << std::endl;
+
+    // Single thread
+    NdArray::SetNumWorkers(1);
+    const auto& single_rets = SplitRetItems(MeasureOpTime(ops)...);
+    const auto& single_times = std::get<0>(single_rets);
+    const auto& single_arrays = std::get<1>(single_rets);
+    // Print result
+    PrintTimeResult("Single", single_times, 5);
+
+    // Prepare for next task
+    prep_func();
+
+    // Multi thread
+    NdArray::SetNumWorkers(-1);
+    const auto& multi_rets = SplitRetItems(MeasureOpTime(ops)...);
+    const auto& multi_times = std::get<0>(multi_rets);
+    const auto& multi_arrays = std::get<1>(multi_rets);
+    // Print result
+    PrintTimeResult("Multi ", multi_times, 5);
+
+    // Time check
+    for (size_t i = 0; i < sizeof...(ops); i++) {
+        CHECK(multi_times[i] < single_times[i]);
+    }
+
+    // Check array content
+    for (size_t i = 0; i < sizeof...(ops); i++) {
+        CheckSameNdArray(single_arrays[i], multi_arrays[i]);
+    }
+}
 
 TEST_CASE("NdArray") {
-    SECTION("Simple op (1 args)") {
+    // ------------------------ Element-wise Operation -------------------------
+    SECTION("Element-wise (NdArray, float)") {
         auto m1 = NdArray::Arange(WH);
-        auto m1_move1 = NdArray::Arange(WH);
-        auto m1_move2 = NdArray::Arange(WH);
-        auto m1_cao1 = NdArray::Arange(WH);
-        auto m1_cao2 = NdArray::Arange(WH);
-
-        // Single thread
-        NdArray::SetNumWorkers(1);
-        // Basic
-        g_timer.start();
-        auto ret1_single = m1 + 1.f;
-        g_timer.end();
-        const float t1_single = g_timer.getElapsedMsec();
-        // In-place
-        g_timer.start();
-        auto ret2_single = std::move(m1_move1) + 1.f;
-        g_timer.end();
-        const float t2_single = g_timer.getElapsedMsec();
-        // Compound Assignment
-        g_timer.start();
-        m1_cao1 += 1.f;
-        g_timer.end();
-        const float t3_single = g_timer.getElapsedMsec();
-
-        // Multi thread
-        NdArray::SetNumWorkers(-1);
-        // Basic
-        g_timer.start();
-        auto ret1_multi = m1 + 1.f;
-        g_timer.end();
-        const float t1_multi = g_timer.getElapsedMsec();
-        // In-place
-        g_timer.start();
-        auto ret2_multi = std::move(m1_move2) + 1.f;
-        g_timer.end();
-        const float t2_multi = g_timer.getElapsedMsec();
-        // Compound Assignment
-        g_timer.start();
-        m1_cao2 += 1.f;
-        g_timer.end();
-        const float t3_multi = g_timer.getElapsedMsec();
-
-        std::cout << "* Simple op (1 args)" << std::endl;
-        std::cout << "  * Single : " << t1_single << " ms" << std::endl;
-        std::cout << "             " << t2_single << " ms" << std::endl;
-        std::cout << "             " << t3_single << " ms" << std::endl;
-        std::cout << "  * Multi :  " << t1_multi << " ms" << std::endl;
-        std::cout << "             " << t2_multi << " ms" << std::endl;
-        std::cout << "             " << t3_multi << " ms" << std::endl;
-
-        CHECK(t1_multi < t1_single);
-        CHECK(t2_multi < t2_single);
-        CHECK(t3_multi < t3_single);
+        auto m1_move = NdArray::Arange(WH);
+        auto m1_move_sub = NdArray::Arange(WH);
+        auto m1_cao = NdArray::Arange(WH);
+        auto m1_cao_sub = NdArray::Arange(WH);
+        TestSingleMultiThread(
+                "Element-wise (NdArray, float)",
+                [&]() {
+                    m1_move = std::move(m1_move_sub);  // Preparation for multi
+                    m1_cao = std::move(m1_cao_sub);
+                },
+                [&]() { return m1 + 1.f; },                  // Basic
+                [&]() { return std::move(m1_move) + 1.f; },  // Inplace
+                [&]() { return m1_cao += 1.f; });  // Compound Assignment
     }
 
-    SECTION("Simple op (2 args)") {
+    SECTION("Element-wise (NdArray, NdArray) (same-size)") {
         auto m1 = NdArray::Arange(WH);
-        auto m1_move1 = NdArray::Arange(WH);
-        auto m1_move2 = NdArray::Arange(WH);
-        auto m1_cao1 = NdArray::Arange(WH);
-        auto m1_cao2 = NdArray::Arange(WH);
-        auto m2 = NdArray::Zeros(WH);
+        auto m1_move = NdArray::Arange(WH);
+        auto m1_move_sub = NdArray::Arange(WH);
+        auto m1_cao = NdArray::Arange(WH);
+        auto m1_cao_sub = NdArray::Arange(WH);
+        auto m2 = NdArray::Ones(WH);
 
-        // Single thread
-        NdArray::SetNumWorkers(1);
-        // Basic
-        g_timer.start();
-        auto ret1_single = m1 + m2;
-        g_timer.end();
-        const float t1_single = g_timer.getElapsedMsec();
-        // In-place
-        g_timer.start();
-        auto ret2_single = std::move(m1_move1) + m2;
-        g_timer.end();
-        const float t2_single = g_timer.getElapsedMsec();
-        // Compound Assignment
-        g_timer.start();
-        m1_cao1 += m2;
-        g_timer.end();
-        const float t3_single = g_timer.getElapsedMsec();
-
-        // Multi thread
-        NdArray::SetNumWorkers(-1);
-        // Basic
-        g_timer.start();
-        auto ret1_multi = m1 + m2;
-        g_timer.end();
-        const float t1_multi = g_timer.getElapsedMsec();
-        // In-place
-        g_timer.start();
-        auto ret2_multi = std::move(m1_move2) + m2;
-        g_timer.end();
-        const float t2_multi = g_timer.getElapsedMsec();
-        // Compound Assignment
-        g_timer.start();
-        m1_cao2 += m2;
-        g_timer.end();
-        const float t3_multi = g_timer.getElapsedMsec();
-
-        std::cout << "* Simple op (2 args)" << std::endl;
-        std::cout << "  * Single : " << t1_single << " ms" << std::endl;
-        std::cout << "             " << t2_single << " ms" << std::endl;
-        std::cout << "             " << t3_single << " ms" << std::endl;
-        std::cout << "  * Multi :  " << t1_multi << " ms" << std::endl;
-        std::cout << "             " << t2_multi << " ms" << std::endl;
-        std::cout << "             " << t3_multi << " ms" << std::endl;
-
-        CHECK(t1_multi < t1_single);
-        CHECK(t2_multi < t2_single);
-        CHECK(t3_multi < t3_single);
+        TestSingleMultiThread(
+                "Element-wise (NdArray, NdArray) (same-size)",
+                [&]() {
+                    m1_move = std::move(m1_move_sub);
+                    m1_cao = std::move(m1_cao_sub);
+                },
+                [&]() { return m1 + m2; },                  // Basic
+                [&]() { return std::move(m1_move) + m2; },  // Inplace
+                [&]() { return m1_cao += m2; });  // Compound Assignment
     }
 
-    SECTION("Broadcast op") {
+    SECTION("Element-wise (NdArray, NdArray) (broadcast) (left-big)") {
         auto m1 = NdArray::Arange(WH).reshape(H, W);
-        auto m1_move1 = NdArray::Arange(WH).reshape(H, W);
-        auto m1_move2 = NdArray::Arange(WH).reshape(H, W);
-        auto m1_cao1 = NdArray::Arange(WH).reshape(H, W);
-        auto m1_cao2 = NdArray::Arange(WH).reshape(H, W);
-        auto m2 = NdArray::Zeros(W);
-
-        // Single thread
-        NdArray::SetNumWorkers(1);
-        // Basic
-        g_timer.start();
-        auto ret1_single = m1 + m2;
-        g_timer.end();
-        const float t1_single = g_timer.getElapsedMsec();
-        // In-place
-        g_timer.start();
-        auto ret2_single = std::move(m1_move1) + m2;
-        g_timer.end();
-        const float t2_single = g_timer.getElapsedMsec();
-        // Compound Assignment
-        g_timer.start();
-        m1_cao1 += m2;
-        g_timer.end();
-        const float t3_single = g_timer.getElapsedMsec();
-
-        // Multi thread
-        NdArray::SetNumWorkers(-1);
-        // Basic
-        g_timer.start();
-        auto ret1_multi = m1 + m2;
-        g_timer.end();
-        const float t1_multi = g_timer.getElapsedMsec();
-        // In-place
-        g_timer.start();
-        auto ret2_multi = std::move(m1_move2) + m2;
-        g_timer.end();
-        const float t2_multi = g_timer.getElapsedMsec();
-        // Compound Assignment
-        g_timer.start();
-        m1_cao2 += m2;
-        g_timer.end();
-        const float t3_multi = g_timer.getElapsedMsec();
-
-        std::cout << "* Broadcast op" << std::endl;
-        std::cout << "  * Single : " << t1_single << " ms" << std::endl;
-        std::cout << "             " << t2_single << " ms" << std::endl;
-        std::cout << "             " << t3_single << " ms" << std::endl;
-        std::cout << "  * Multi :  " << t1_multi << " ms" << std::endl;
-        std::cout << "             " << t2_multi << " ms" << std::endl;
-        std::cout << "             " << t3_multi << " ms" << std::endl;
-
-        CHECK(t1_multi < t1_single);
-        CHECK(t2_multi < t2_single);
-        CHECK(t3_multi < t3_single);
+        auto m1_move = NdArray::Arange(WH).reshape(H, W);
+        auto m1_move_sub = NdArray::Arange(WH).reshape(H, W);
+        auto m1_cao = NdArray::Arange(WH).reshape(H, W);
+        auto m1_cao_sub = NdArray::Arange(WH).reshape(H, W);
+        auto m2 = NdArray::Ones(W);
+        TestSingleMultiThread(
+                "Element-wise (NdArray, NdArray) (broadcast) (left-big)",
+                [&]() {
+                    m1_move = std::move(m1_move_sub);
+                    m1_cao = std::move(m1_cao_sub);
+                },
+                [&]() { return m1 + m2; },                  // Basic
+                [&]() { return std::move(m1_move) + m2; },  // Inplace
+                [&]() { return m1_cao += m2; });  // Compound Assignment
     }
 
-    SECTION("Dot left-big") {
+    SECTION("Element-wise (NdArray, NdArray) (broadcast) (right-big)") {
+        auto m1 = NdArray::Arange(WH).reshape(H, W);
+        auto m1_move = NdArray::Arange(WH).reshape(H, W);
+        auto m1_move_sub = NdArray::Arange(WH).reshape(H, W);
+        auto m2 = NdArray::Ones(W);
+        TestSingleMultiThread(
+                "Element-wise (NdArray, NdArray) (broadcast) (right-big)",
+                [&]() { m1_move = std::move(m1_move_sub); },
+                [&]() { return m2 + m1; },                   // Basic
+                [&]() { return m2 + std::move(m1_move); });  // Inplace
+    }
+
+    // ------------------------------ Dot product ------------------------------
+    SECTION("Dot (1d1d)") {
+        auto m1 = NdArray::Arange(WH);
+        auto m2 = NdArray::Ones(WH);
+        TestSingleMultiThread(
+                "Dot (1d1d)", [&]() {}, [&]() { return m1.dot(m2); });
+    }
+
+    SECTION("Dot (NdMd) (left-big)") {
         auto m1 = NdArray::Arange(WH).reshape(H, 1, W);
         auto m2 = NdArray::Ones(W, 1);
-
-        // Single thread
-        NdArray::SetNumWorkers(1);
-        // Basic
-        g_timer.start();
-        auto ret1_single = m1.dot(m2);
-        g_timer.end();
-        const float t1_single = g_timer.getElapsedMsec();
-
-        // Multi thread
-        NdArray::SetNumWorkers(-1);
-        // Basic
-        g_timer.start();
-        auto ret1_multi = m1.dot(m2);
-        g_timer.end();
-        const float t1_multi = g_timer.getElapsedMsec();
-
-        std::cout << "* Dot left-bing op" << std::endl;
-        std::cout << "  * Single : " << t1_single << " ms" << std::endl;
-        std::cout << "  * Multi :  " << t1_multi << " ms" << std::endl;
-
-        //         CHECK(t1_multi < t1_single);
+        TestSingleMultiThread(
+                "Dot (NdMd) (left-big)", [&]() {},
+                [&]() { return m1.dot(m2); });
     }
 
-    SECTION("Dot right-big") {
+    SECTION("Dot (NdMd) (right-big)") {
         auto m1 = NdArray::Arange(WH).reshape(1, H, W);
         auto m2 = NdArray::Ones(1, H);
-
-        // Single thread
-        NdArray::SetNumWorkers(1);
-        // Basic
-        g_timer.start();
-        auto ret1_single = m2.dot(m1);
-        g_timer.end();
-        const float t1_single = g_timer.getElapsedMsec();
-
-        // Multi thread
-        NdArray::SetNumWorkers(-1);
-        // Basic
-        g_timer.start();
-        auto ret1_multi = m2.dot(m1);
-        g_timer.end();
-        const float t1_multi = g_timer.getElapsedMsec();
-
-        std::cout << "* Dot right-big op" << std::endl;
-        std::cout << "  * Single : " << t1_single << " ms" << std::endl;
-        std::cout << "  * Multi :  " << t1_multi << " ms" << std::endl;
-
-        //         CHECK(t1_multi < t1_single);
+        TestSingleMultiThread(
+                "Dot (NdMd) (right-big)", [&]() {},
+                [&]() { return m2.dot(m1); });
     }
 }
