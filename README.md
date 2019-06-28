@@ -1,6 +1,8 @@
 # TinyNdArray
 
-Single Header NdArray of NumPy Implementation in C++.
+Single Header C++ Implementation of NumPy NdArray.
+
+I look forward to your pull-request.
 
 ## Requirement
 
@@ -372,7 +374,7 @@ However, even right-reference values are passed, when the size is changed by bro
 
 In default, most of all operations run in parallel by threads.
 
-When changing the number of workers, please set `N_WORKERS`.
+When changing the number of workers, please set via `NdArray::SetNumWorkers()`.
 
 ```
 // Default setting. Use all of cores.
