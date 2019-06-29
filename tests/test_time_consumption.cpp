@@ -220,3 +220,18 @@ TEST_CASE("NdArray Dot") {
     }
     */
 }
+
+// ------------------------------- Cross product -------------------------------
+TEST_CASE("NdArray Cross") {
+    auto m1_a = NdArray::Arange(WH * 3).reshape(H, W, 3);
+    auto m1_b = NdArray::Arange(WH * 2).reshape(H, W, 2);
+    auto m2_a = NdArray::Ones(W, 3);
+    auto m2_b = NdArray::Ones(W, 2);
+    SECTION("(NdMd)") {
+        TestSingleMultiThread(
+                "Cross (NdMd)", [&]() {},
+                [&]() { return m1_a.cross(m2_a); },   // 3x3
+                [&]() { return m1_a.cross(m2_b); },   // 3x2
+                [&]() { return m1_b.cross(m2_b); });  // 2x2
+    }
+}
