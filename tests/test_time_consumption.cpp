@@ -107,16 +107,16 @@ void TestSingleMultiThread(const std::string& tag, F prep_func, OP... ops) {
     }
 }
 
-TEST_CASE("NdArray") {
-    // ------------------------ Element-wise Operation -------------------------
-    SECTION("Element-wise (NdArray, float)") {
+// -------------------------- Element-wise Operation ---------------------------
+TEST_CASE("NdArray Element-wise") {
+    SECTION("(NdArray, float)") {
         auto m1 = NdArray::Arange(WH);
         auto m1_move = NdArray::Arange(WH);
         auto m1_move_sub = NdArray::Arange(WH);
         auto m1_cao = NdArray::Arange(WH);
         auto m1_cao_sub = NdArray::Arange(WH);
         TestSingleMultiThread(
-                "Element-wise (NdArray, float)",
+                "(NdArray, float)",
                 [&]() {
                     m1_move = std::move(m1_move_sub);  // Preparation for multi
                     m1_cao = std::move(m1_cao_sub);
@@ -126,7 +126,7 @@ TEST_CASE("NdArray") {
                 [&]() { return m1_cao += 1.f; });  // Compound Assignment
     }
 
-    SECTION("Element-wise (NdArray, NdArray) (same-size)") {
+    SECTION("(NdArray, NdArray) (same-size)") {
         auto m1 = NdArray::Arange(WH);
         auto m1_move = NdArray::Arange(WH);
         auto m1_move_sub = NdArray::Arange(WH);
@@ -135,7 +135,7 @@ TEST_CASE("NdArray") {
         auto m2 = NdArray::Ones(WH);
 
         TestSingleMultiThread(
-                "Element-wise (NdArray, NdArray) (same-size)",
+                "(NdArray, NdArray) (same-size)",
                 [&]() {
                     m1_move = std::move(m1_move_sub);
                     m1_cao = std::move(m1_cao_sub);
@@ -145,7 +145,7 @@ TEST_CASE("NdArray") {
                 [&]() { return m1_cao += m2; });  // Compound Assignment
     }
 
-    SECTION("Element-wise (NdArray, NdArray) (broadcast) (left-big)") {
+    SECTION("(NdArray, NdArray) (broadcast) (left-big)") {
         auto m1 = NdArray::Arange(WH).reshape(H, W);
         auto m1_move = NdArray::Arange(WH).reshape(H, W);
         auto m1_move_sub = NdArray::Arange(WH).reshape(H, W);
@@ -153,7 +153,7 @@ TEST_CASE("NdArray") {
         auto m1_cao_sub = NdArray::Arange(WH).reshape(H, W);
         auto m2 = NdArray::Ones(W);
         TestSingleMultiThread(
-                "Element-wise (NdArray, NdArray) (broadcast) (left-big)",
+                "(NdArray, NdArray) (broadcast) (left-big)",
                 [&]() {
                     m1_move = std::move(m1_move_sub);
                     m1_cao = std::move(m1_cao_sub);
@@ -163,39 +163,46 @@ TEST_CASE("NdArray") {
                 [&]() { return m1_cao += m2; });  // Compound Assignment
     }
 
-    SECTION("Element-wise (NdArray, NdArray) (broadcast) (right-big)") {
+    SECTION("(NdArray, NdArray) (broadcast) (right-big)") {
         auto m1 = NdArray::Arange(WH).reshape(H, W);
         auto m1_move = NdArray::Arange(WH).reshape(H, W);
         auto m1_move_sub = NdArray::Arange(WH).reshape(H, W);
         auto m2 = NdArray::Ones(W);
         TestSingleMultiThread(
-                "Element-wise (NdArray, NdArray) (broadcast) (right-big)",
+                "(NdArray, NdArray) (broadcast) (right-big)",
                 [&]() { m1_move = std::move(m1_move_sub); },
                 [&]() { return m2 + m1; },                   // Basic
                 [&]() { return m2 + std::move(m1_move); });  // Inplace
     }
+}
 
-    // ------------------------------ Dot product ------------------------------
-    SECTION("Dot (1d1d)") {
-        auto m1 = NdArray::Arange(WH);
-        auto m2 = NdArray::Ones(WH);
+// -------------------------------- Dot product --------------------------------
+TEST_CASE("NdArray Dot") {
+    SECTION("(1d1d)") {
+        auto m1 = NdArray::Ones(16000000);  // 16777216 is limit of float
+        auto m2 = NdArray::Ones(16000000);
         TestSingleMultiThread(
-                "Dot (1d1d)", [&]() {}, [&]() { return m1.dot(m2); });
+                "(1d1d)", [&]() {}, [&]() { return m1.dot(m2); });
     }
 
-    SECTION("Dot (NdMd) (left-big)") {
+    SECTION("(2d2d)") {
+        auto m1 = NdArray::Arange(200 * W).reshape(200, W);
+        auto m2 = NdArray::Ones(W, 200);
+        TestSingleMultiThread(
+                "(2d2d)", [&]() {}, [&]() { return m1.dot(m2); });
+    }
+
+    SECTION("(NdMd) (left-big)") {
         auto m1 = NdArray::Arange(WH).reshape(H, 1, W);
         auto m2 = NdArray::Ones(W, 1);
         TestSingleMultiThread(
-                "Dot (NdMd) (left-big)", [&]() {},
-                [&]() { return m1.dot(m2); });
+                "(NdMd) (left-big)", [&]() {}, [&]() { return m1.dot(m2); });
     }
 
-    SECTION("Dot (NdMd) (right-big)") {
-        auto m1 = NdArray::Arange(WH).reshape(1, H, W);
-        auto m2 = NdArray::Ones(1, H);
+    SECTION("(NdMd) (right-big)") {
+        auto m1 = NdArray::Ones(1, H);
+        auto m2 = NdArray::Arange(WH).reshape(W, H, 1);
         TestSingleMultiThread(
-                "Dot (NdMd) (right-big)", [&]() {},
-                [&]() { return m2.dot(m1); });
+                "(NdMd) (right-big)", [&]() {}, [&]() { return m1.dot(m2); });
     }
 }

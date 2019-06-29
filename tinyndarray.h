@@ -495,22 +495,27 @@ inline auto ReverseOp(F op) {
     return [op](float a, float b) { return op(b, a); };  // Swap left and right
 }
 
-template <typename F>
-void RunParallel(size_t size, F op) {
+void GetPrallelParams(int size, int& n_workers, int& n_batch, int& batch_size) {
     // Fetch the number of workers
-    int n_workers = NdArray::GetNumWorkers();
+    n_workers = NdArray::GetNumWorkers();
     if (n_workers <= 0) {
         n_workers = static_cast<int>(std::thread::hardware_concurrency());
     }
-
-    const int size_i = static_cast<int>(size);
-    const int n_batch = n_workers * NdArray::GetBatchScale();
-    const int batch_size = size_i / n_batch + (size_i % n_batch ? 1 : 0);
+    // Compute batch size and it number
+    n_batch = n_workers * NdArray::GetBatchScale();
+    batch_size = size / n_batch + (size % n_batch ? 1 : 0);
     n_workers = std::min(n_workers, batch_size);
+}
+
+template <typename F>
+void RunParallel(int size, F op) {
+    // Decide parallelization parameters
+    int n_workers = -1, n_batch = -1, batch_size = -1;
+    GetPrallelParams(size, n_workers, n_batch, batch_size);
 
     if (n_workers <= 1) {
         // Single execution
-        for (int i = 0; i < size_i; i++) {
+        for (int i = 0; i < size; i++) {
             // Operation
             op(i);
         }
@@ -524,7 +529,7 @@ void RunParallel(size_t size, F op) {
                 while ((batch_cnt = next_batch++) < n_batch) {
                     for (int i = 0; i < batch_size; i++) {
                         const int idx = batch_size * batch_cnt + i;
-                        if (size_i <= idx) {
+                        if (size <= idx) {
                             break;
                         }
                         // Operation
@@ -539,11 +544,56 @@ void RunParallel(size_t size, F op) {
     }
 }
 
+template <typename F, typename R>
+float RunParallelWithReduce(int size, F op, R reduce, float init_v) {
+    // Decide parallelization parameters
+    int n_workers = -1, n_batch = -1, batch_size = -1;
+    GetPrallelParams(size, n_workers, n_batch, batch_size);
+
+    if (n_workers <= 1) {
+        // Single execution
+        float v = init_v;
+        for (int i = 0; i < size; i++) {
+            // Operation with reduction
+            v = reduce(v, op(i));
+        }
+        return v;
+    } else {
+        // Parallel execution
+        std::atomic<int> next_batch(0);
+        std::vector<std::thread> workers(static_cast<size_t>(n_workers));
+        std::vector<float> reduced_results(workers.size());
+        for (size_t t = 0; t < workers.size(); t++) {
+            workers[t] = std::thread([=, &next_batch, &reduced_results]() {
+                int batch_cnt = 0;
+                float v = init_v;
+                while ((batch_cnt = next_batch++) < n_batch) {
+                    for (int i = 0; i < batch_size; i++) {
+                        const int idx = batch_size * batch_cnt + i;
+                        if (size <= idx) {
+                            break;
+                        }
+                        // Operation with reduction
+                        v = reduce(v, op(idx));
+                    }
+                }
+                reduced_results[t] = v;
+            });
+        }
+        for (auto&& worker : workers) {
+            worker.join();
+        }
+        return std::accumulate(reduced_results.begin(), reduced_results.end(),
+                               init_v, reduce);
+    }
+}
+
 template <typename F>
 inline void ApplyOpSimple(NdArray& ret, F op) {
     auto&& ret_data = ret.data();
     // Simply apply all
-    RunParallel(ret.size(), [&](int i) { ret_data[i] = op(); });
+    RunParallel(static_cast<int>(ret.size()),
+                [&](int i) { ret_data[i] = op(); });
 }
 
 template <typename F>
@@ -551,7 +601,8 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& src, F op) {
     auto&& ret_data = ret.data();
     auto&& src_data = src.data();
     // Simply apply all
-    RunParallel(ret.size(), [&](int i) { ret_data[i] = op(src_data[i]); });
+    RunParallel(static_cast<int>(ret.size()),
+                [&](int i) { ret_data[i] = op(src_data[i]); });
 }
 
 template <typename F>
@@ -561,7 +612,7 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
     auto&& l_data = lhs.data();
     auto&& r_data = rhs.data();
     // Simply apply all
-    RunParallel(ret.size(),
+    RunParallel(static_cast<int>(ret.size()),
                 [&](int i) { ret_data[i] = op(l_data[i], r_data[i]); });
 }
 
@@ -571,7 +622,8 @@ inline void ApplyOpSimple(NdArray& ret, const NdArray& lhs, const float rhs,
     auto&& ret_data = ret.data();
     auto&& l_data = lhs.data();
     // Simply apply all
-    RunParallel(ret.size(), [&](int i) { ret_data[i] = op(l_data[i], rhs); });
+    RunParallel(static_cast<int>(ret.size()),
+                [&](int i) { ret_data[i] = op(l_data[i], rhs); });
 }
 
 static std::vector<int> ComputeChildSizes(const Shape& shape) {
@@ -887,17 +939,15 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
         r_steps.push_back(r_step);
     }
 
-#if 1
-    // Call operation loop in parallel
-    RunParallel(static_cast<size_t>(ret_shape[0]), [&](int i) {
+#if 1  // Run in parallel
+    RunParallel(ret_shape[0], [&](int i) {
         const int ret_size = static_cast<int>(ret.size()) / ret_shape[0];
         ApplyOpBroadcastImpl<ret_step>(
                 ret.data() + ret_child_sizes[0] * i,
                 lhs.data() + l_steps[0] * i, rhs.data() + r_steps[0] * i,
                 ret_shape, ret_size, l_steps, r_steps, 1, n_depth, op);
     });
-#else
-    // Call operation loop
+#else  // Run sequentially
     ApplyOpBroadcastImpl<ret_step>(ret.data(), lhs.data(), rhs.data(),
                                    ret_shape, static_cast<int>(ret.size()),
                                    l_steps, r_steps, 0, n_depth, op);
@@ -1203,17 +1253,17 @@ static void OutputShape(std::ostream& os, const Shape& shape) {
 
 // -------------------- Utilities for NdArray (Dot product) --------------------
 static NdArray DotNdArray1d(const NdArray& lhs, const NdArray& rhs) {
-    if (lhs.size() != rhs.size()) {
+    const size_t size = lhs.size();
+    if (size != rhs.size()) {
         throw std::runtime_error("Invalid size for inner product of 1D");
     }
     // Inner product of vectors
     auto&& l_data = lhs.data();
     auto&& r_data = rhs.data();
-    float sum = 0.f;
-    const int size = static_cast<int>(lhs.size());
-    for (int i = 0; i < size; i++) {
-        sum += l_data[i] * r_data[i];
-    }
+    auto&& op = [&](int i) { return l_data[i] * r_data[i]; };
+    // Run in parallel
+    const float sum = RunParallelWithReduce(static_cast<int>(size), op,
+                                            std::plus<float>(), 0.f);
     return {sum};
 }
 
@@ -1263,6 +1313,14 @@ void DotNdArray2dImpl(const NdArray::Iter& ret_data,
                       const NdArray::ConstIter& l_data,
                       const NdArray::ConstIter& r_data, const int n_row,
                       const int n_col, const int n_contract, F1d2d op_1d2d) {
+#if 1  // Run in parallel
+    RunParallel(n_row, [&](int row_cnt) {
+        const int ret_idx = n_col * row_cnt;
+        const int l_idx = n_contract * row_cnt;
+        ;
+        op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data, n_col, n_contract);
+    });
+#else  // Run sequentially
     int ret_idx = 0;
     int l_idx = 0;
     for (int row_cnt = 0; row_cnt < n_row; row_cnt++) {
@@ -1270,6 +1328,7 @@ void DotNdArray2dImpl(const NdArray::Iter& ret_data,
         l_idx += n_contract;
         ret_idx += n_col;
     }
+#endif
 }
 
 static NdArray DotNdArray2d(const NdArray& lhs, const NdArray& rhs) {
@@ -1297,6 +1356,34 @@ void DotNdArrayNdMdImpl(const NdArray::Iter& ret_data,
     const int& n_contract = l_step;
     const int& n_col = ret_step;
     const int& ret_idx_base = n_r;
+#if 1                 // Run in parallel
+    if (n_l < n_r) {  // Right-hand side loop
+        RunParallel(n_r, [&](int r_cnt) {
+            const int ret_step_base = ret_idx_base * ret_step;
+            const int r_idx = r_cnt * r_step;
+            int l_idx = 0;
+            int ret_idx = r_cnt * ret_step;
+            for (int l_cnt = 0; l_cnt < n_l; l_cnt++) {
+                op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data + r_idx,
+                        n_col, n_contract);
+                l_idx += l_step;
+                ret_idx += ret_step_base;
+            }
+        });
+    } else {  // Left-hand side loop
+        RunParallel(n_l, [&](int l_cnt) {
+            const int l_idx = l_cnt * l_step;
+            int r_idx = 0;
+            int ret_idx = l_cnt * ret_idx_base * ret_step;
+            for (int r_cnt = 0; r_cnt < n_r; r_cnt++) {
+                op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data + r_idx,
+                        n_col, n_contract);
+                r_idx += r_step;
+                ret_idx += ret_step;
+            }
+        });
+    }
+#else  // Run sequentially
     int l_idx = 0;
     int ret_idx0 = 0;
     for (int l_cnt = 0; l_cnt < n_l; l_cnt++) {
@@ -1311,6 +1398,7 @@ void DotNdArrayNdMdImpl(const NdArray::Iter& ret_data,
         l_idx += l_step;
         ret_idx0 += ret_idx_base;
     }
+#endif
 }
 
 static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
