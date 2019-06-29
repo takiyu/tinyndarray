@@ -1317,7 +1317,6 @@ void DotNdArray2dImpl(const NdArray::Iter& ret_data,
     RunParallel(n_row, [&](int row_cnt) {
         const int ret_idx = n_col * row_cnt;
         const int l_idx = n_contract * row_cnt;
-        ;
         op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data, n_col, n_contract);
     });
 #else  // Run sequentially
@@ -1356,9 +1355,9 @@ void DotNdArrayNdMdImpl(const NdArray::Iter& ret_data,
     const int& n_contract = l_step;
     const int& n_col = ret_step;
     const int& ret_idx_base = n_r;
-#if 1                 // Run in parallel
-    if (n_l < n_r) {  // Right-hand side loop
-        RunParallel(n_r, [&](int r_cnt) {
+#if 1  // Run in parallel
+    if (n_l < n_r) {
+        RunParallel(n_r, [&](int r_cnt) {  // Right-hand side loop
             const int ret_step_base = ret_idx_base * ret_step;
             const int r_idx = r_cnt * r_step;
             int l_idx = 0;
@@ -1370,8 +1369,8 @@ void DotNdArrayNdMdImpl(const NdArray::Iter& ret_data,
                 ret_idx += ret_step_base;
             }
         });
-    } else {  // Left-hand side loop
-        RunParallel(n_l, [&](int l_cnt) {
+    } else {
+        RunParallel(n_l, [&](int l_cnt) {  // Left-hand side loop
             const int l_idx = l_cnt * l_step;
             int r_idx = 0;
             int ret_idx = l_cnt * ret_idx_base * ret_step;

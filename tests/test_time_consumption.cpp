@@ -12,6 +12,7 @@ using namespace tinyndarray;
 constexpr int W = 20000;
 constexpr int H = 20000;
 constexpr int WH = W * H;
+constexpr int N_WORKERS = -1;
 
 class Timer {
 public:
@@ -89,7 +90,7 @@ void TestSingleMultiThread(const std::string& tag, F prep_func, OP... ops) {
     prep_func();
 
     // Multi thread
-    NdArray::SetNumWorkers(-1);
+    NdArray::SetNumWorkers(N_WORKERS);
     const auto& multi_rets = SplitRetItems(MeasureOpTime(ops)...);
     const auto& multi_times = std::get<0>(multi_rets);
     const auto& multi_arrays = std::get<1>(multi_rets);
@@ -116,7 +117,7 @@ TEST_CASE("NdArray Element-wise") {
         auto m1_cao = NdArray::Arange(WH);
         auto m1_cao_sub = NdArray::Arange(WH);
         TestSingleMultiThread(
-                "(NdArray, float)",
+                "Element-wise (NdArray, float)",
                 [&]() {
                     m1_move = std::move(m1_move_sub);  // Preparation for multi
                     m1_cao = std::move(m1_cao_sub);
@@ -135,7 +136,7 @@ TEST_CASE("NdArray Element-wise") {
         auto m2 = NdArray::Ones(WH);
 
         TestSingleMultiThread(
-                "(NdArray, NdArray) (same-size)",
+                "Element-wise (NdArray, NdArray) (same-size)",
                 [&]() {
                     m1_move = std::move(m1_move_sub);
                     m1_cao = std::move(m1_cao_sub);
@@ -153,7 +154,7 @@ TEST_CASE("NdArray Element-wise") {
         auto m1_cao_sub = NdArray::Arange(WH).reshape(H, W);
         auto m2 = NdArray::Ones(W);
         TestSingleMultiThread(
-                "(NdArray, NdArray) (broadcast) (left-big)",
+                "Element-wise (NdArray, NdArray) (broadcast) (left-big)",
                 [&]() {
                     m1_move = std::move(m1_move_sub);
                     m1_cao = std::move(m1_cao_sub);
@@ -169,7 +170,7 @@ TEST_CASE("NdArray Element-wise") {
         auto m1_move_sub = NdArray::Arange(WH).reshape(H, W);
         auto m2 = NdArray::Ones(W);
         TestSingleMultiThread(
-                "(NdArray, NdArray) (broadcast) (right-big)",
+                "Element-wise (NdArray, NdArray) (broadcast) (right-big)",
                 [&]() { m1_move = std::move(m1_move_sub); },
                 [&]() { return m2 + m1; },                   // Basic
                 [&]() { return m2 + std::move(m1_move); });  // Inplace
@@ -182,27 +183,40 @@ TEST_CASE("NdArray Dot") {
         auto m1 = NdArray::Ones(16000000);  // 16777216 is limit of float
         auto m2 = NdArray::Ones(16000000);
         TestSingleMultiThread(
-                "(1d1d)", [&]() {}, [&]() { return m1.dot(m2); });
+                "Dot (1d1d)", [&]() {}, [&]() { return m1.dot(m2); });
     }
 
     SECTION("(2d2d)") {
         auto m1 = NdArray::Arange(200 * W).reshape(200, W);
         auto m2 = NdArray::Ones(W, 200);
         TestSingleMultiThread(
-                "(2d2d)", [&]() {}, [&]() { return m1.dot(m2); });
+                "Dot (2d2d)", [&]() {}, [&]() { return m1.dot(m2); });
     }
 
     SECTION("(NdMd) (left-big)") {
         auto m1 = NdArray::Arange(WH).reshape(H, 1, W);
         auto m2 = NdArray::Ones(W, 1);
         TestSingleMultiThread(
-                "(NdMd) (left-big)", [&]() {}, [&]() { return m1.dot(m2); });
+                "Dot (NdMd) (left-big)", [&]() {},
+                [&]() { return m1.dot(m2); });
     }
 
     SECTION("(NdMd) (right-big)") {
         auto m1 = NdArray::Ones(1, H);
         auto m2 = NdArray::Arange(WH).reshape(W, H, 1);
         TestSingleMultiThread(
-                "(NdMd) (right-big)", [&]() {}, [&]() { return m1.dot(m2); });
+                "Dot (NdMd) (right-big)", [&]() {},
+                [&]() { return m1.dot(m2); });
     }
+
+    /*
+    // This type cannot be operated in parallel.
+    SECTION("(NdMd) (right-big 2)") {
+        auto m1 = NdArray::Ones(1, H);
+        auto m2 = NdArray::Arange(WH).reshape(1, H, W);
+        TestSingleMultiThread(
+                "Dot (NdMd) (right-big 2)", [&]() {},
+                [&]() { return m1.dot(m2); });
+    }
+    */
 }
