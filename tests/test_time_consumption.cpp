@@ -235,3 +235,13 @@ TEST_CASE("NdArray Cross") {
                 [&]() { return m1_b.cross(m2_b); });  // 2x2
     }
 }
+
+// ------------------------------- Axis operation ------------------------------
+TEST_CASE("NdArray Axis") {
+    auto m1 = NdArray::Ones(16000000).reshape(4000, 4000);  // 16777216 is limit
+    SECTION("Sum") {
+        TestSingleMultiThread(
+                "Sum", [&]() {}, [&]() { return m1.sum(); },
+                [&]() { return m1.sum(Axis{0}); });
+    }
+}

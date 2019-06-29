@@ -23,7 +23,7 @@ using InitShape = std::initializer_list<int>;
 using Shape = std::vector<int>;
 using Index = std::vector<int>;
 using SliceIndex = std::vector<std::pair<int, int>>;
-using Axes = std::vector<int>;
+using Axis = std::vector<int>;
 
 // =============================================================================
 // ======================= Nested Float Initializer List =======================
@@ -139,10 +139,10 @@ public:
     NdArray dot(float other) const;
     NdArray cross(const NdArray& other) const;
 
-    NdArray sum(const Axes& = {}) const;
-    NdArray min(const Axes& = {}) const;
-    NdArray max(const Axes& = {}) const;
-    NdArray mean(const Axes& = {}) const;
+    NdArray sum(const Axis& axes = {}) const;
+    NdArray min(const Axis& axes = {}) const;
+    NdArray max(const Axis& axes = {}) const;
+    NdArray mean(const Axis& axes = {}) const;
 
     class Substance;
 
@@ -384,10 +384,10 @@ NdArray ArcTan2(const NdArray& y, const NdArray& x);
 NdArray ArcTan2(const NdArray& y, float x);
 NdArray ArcTan2(float y, const NdArray& x);
 // Axis functions
-NdArray Sum(const NdArray& x, const Axes& axes = {});
-NdArray Min(const NdArray& x, const Axes& axes = {});
-NdArray Max(const NdArray& x, const Axes& axes = {});
-NdArray Mean(const NdArray& x, const Axes& axes = {});
+NdArray Sum(const NdArray& x, const Axis& axes = {});
+NdArray Min(const NdArray& x, const Axis& axes = {});
+NdArray Max(const NdArray& x, const Axis& axes = {});
+NdArray Mean(const NdArray& x, const Axis& axes = {});
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -1069,7 +1069,7 @@ inline NdArray ApplyElemWiseOpInplace(float lhs, NdArray&& rhs, F op) {
 static int ComputeReducedIndex(int src_idx,
                                const std::vector<int>& ret_child_sizes,
                                const std::vector<int>& src_child_sizes,
-                               const Axes& sorted_axes) {
+                               const Axis& sorted_axes) {
     // Convert source index to result index
     // [2, (3), 4, (5), 6]
     int ret_idx = 0;
@@ -1092,7 +1092,7 @@ static int ComputeReducedIndex(int src_idx,
     return ret_idx;
 }
 
-static auto CheckReductable(const Shape& shape, const Axes& axes) {
+static auto CheckReductable(const Shape& shape, const Axis& axes) {
     // Mark reduction axes
     std::vector<char> mark(shape.size(), false);
     const int n_shape = static_cast<int>(shape.size());
@@ -1120,17 +1120,16 @@ static auto CheckReductable(const Shape& shape, const Axes& axes) {
 }
 
 template <typename F>
-NdArray ReduceAxisAll(const NdArray& src, const float init_v, F op) {
+NdArray ReduceAxisAll(const NdArray& src, const float init_v, F reduce_op) {
     auto&& data = src.data();
-    float ret = init_v;
-    for (size_t i = 0; i < src.size(); i++) {
-        ret = op(ret, *(data++));
-    }
+    auto&& op = [&](int i) { return data[i]; };
+    const float ret = RunParallelWithReduce(static_cast<int>(src.size()), op,
+                                            reduce_op, init_v);
     return {ret};
 }
 
 template <typename F>
-NdArray ReduceAxis(const NdArray& src, const Axes& axes, const float init_v,
+NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
                    F op) {
     if (axes.size() == 0) {
         // No Axis -> Reduce all
@@ -1147,7 +1146,7 @@ NdArray ReduceAxis(const NdArray& src, const Axes& axes, const float init_v,
         const auto& src_child_sizes = ComputeChildSizes(src_shape);
 
         // Sort axes
-        Axes sorted_axes = axes;
+        Axis sorted_axes = axes;
         std::sort(sorted_axes.begin(), sorted_axes.end());
 
         // Result array with value initialization
@@ -1171,7 +1170,7 @@ NdArray ReduceAxis(const NdArray& src, const Axes& axes, const float init_v,
 }
 
 template <typename F>
-NdArray ReduceAxisNoEmpty(const NdArray& src, const Axes& axes,
+NdArray ReduceAxisNoEmpty(const NdArray& src, const Axis& axes,
                           const float init_v, F op) {
     // Check empty
     if (src.size() == 0) {
@@ -2197,19 +2196,19 @@ NdArray NdArray::cross(const NdArray& other) const {
 }
 
 // -------------------------------- Axis Method --------------------------------
-NdArray NdArray::sum(const Axes& axes) const {
+NdArray NdArray::sum(const Axis& axes) const {
     return Sum(*this, axes);
 }
 
-NdArray NdArray::min(const Axes& axes) const {
+NdArray NdArray::min(const Axis& axes) const {
     return Min(*this, axes);
 }
 
-NdArray NdArray::max(const Axes& axes) const {
+NdArray NdArray::max(const Axis& axes) const {
     return Max(*this, axes);
 }
 
-NdArray NdArray::mean(const Axes& axes) const {
+NdArray NdArray::mean(const Axis& axes) const {
     return Mean(*this, axes);
 }
 
@@ -2942,21 +2941,21 @@ NdArray ArcTan2(float y, const NdArray& x) {
 }
 
 // Axis functions
-NdArray Sum(const NdArray& x, const Axes& axes) {
+NdArray Sum(const NdArray& x, const Axis& axes) {
     return ReduceAxis(x, axes, 0.f, std::plus<float>());
 }
 
-NdArray Min(const NdArray& x, const Axes& axes) {
+NdArray Min(const NdArray& x, const Axis& axes) {
     return ReduceAxisNoEmpty(x, axes, std::numeric_limits<float>::max(),
                              [](float a, float b) { return std::min(a, b); });
 }
 
-NdArray Max(const NdArray& x, const Axes& axes) {
+NdArray Max(const NdArray& x, const Axis& axes) {
     return ReduceAxisNoEmpty(x, axes, -std::numeric_limits<float>::max(),
                              [](float a, float b) { return std::max(a, b); });
 }
 
-NdArray Mean(const NdArray& x, const Axes& axes) {
+NdArray Mean(const NdArray& x, const Axis& axes) {
     if (x.size() == 0) {
         return {std::numeric_limits<float>::quiet_NaN()};
     }
