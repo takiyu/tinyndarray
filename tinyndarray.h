@@ -22,6 +22,7 @@ class NdArray;
 using InitShape = std::initializer_list<int>;
 using Shape = std::vector<int>;
 using Index = std::vector<int>;
+class SliceNdArray;
 using SliceIndex = std::vector<std::pair<int, int>>;
 using Axis = std::vector<int>;
 
@@ -54,7 +55,7 @@ public:
     NdArray(NdArray&&) noexcept;
     NdArray& operator=(const NdArray&);
     NdArray& operator=(NdArray&&);
-    ~NdArray();
+    virtual ~NdArray();
 
     NdArray(FloatList<0> init_list);
     NdArray(FloatList<1> init_list);
@@ -131,9 +132,9 @@ public:
     NdArray flatten() const;  // with copy
     NdArray ravel() const;    // without copy
 
-    NdArray slice(const SliceIndex& slice_index) const;
+    SliceNdArray slice(const SliceIndex& slice_index) const;
     template <typename... I>
-    NdArray slice(std::initializer_list<I>... slice_index) const;  // {i, j}...
+    SliceNdArray slice(std::initializer_list<I>... slice_index) const;
 
     NdArray dot(const NdArray& other) const;
     NdArray dot(float other) const;
@@ -204,6 +205,11 @@ public:
 private:
     const NdArray& parent;
     const float* p;
+};
+
+// ------------------------------ Sliced NdArray -------------------------------
+class SliceNdArray : public NdArray {
+    using NdArray::NdArray;
 };
 
 // --------------------------------- Operators ---------------------------------
@@ -713,7 +719,7 @@ NdArray CreateRandomArray(const Shape& shape, D&& dist, R&& rand_engine) {
 }
 
 // ----------------------- Utilities for NdArray (Slice) -----------------------
-static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& dst_data,
+static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& ret_data,
                           const Shape& src_shape, const SliceIndex& slice_index,
                           const std::vector<int>& child_sizes, size_t depth) {
     if (depth < src_shape.size()) {
@@ -723,31 +729,31 @@ static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& dst_data,
         // Copy
         for (int i = si.first; i < si.second; i++) {
             // Recursive call
-            CopySliceImpl(src_data, dst_data, src_shape, slice_index,
+            CopySliceImpl(src_data, ret_data, src_shape, slice_index,
                           child_sizes, depth + 1);
         }
         // Add post offset
         src_data += child_sizes[depth] * (src_shape[depth] - si.second);
     } else {
         // Copy
-        *(dst_data++) = *(src_data++);
+        *(ret_data++) = *(src_data++);
     }
 }
 
-static NdArray CopySlice(const NdArray& src, const Shape& slice_shape,
-                         const SliceIndex& slice_index) {
+static SliceNdArray CopySlice(const NdArray& src, const Shape& slice_shape,
+                              const SliceIndex& slice_index) {
     const Shape& src_shape = src.shape();
 
     // Pre-compute child sizes (index offsets)
     const std::vector<int>& child_sizes = ComputeChildSizes(src_shape);
 
     // Create slice instance
-    NdArray ret(slice_shape);
+    SliceNdArray ret(slice_shape);
 
     // Start to copy
     auto&& src_data = src.data();
-    auto&& dst_data = ret.data();
-    CopySliceImpl(src_data, dst_data, src_shape, slice_index, child_sizes, 0);
+    auto&& ret_data = ret.data();
+    CopySliceImpl(src_data, ret_data, src_shape, slice_index, child_sizes, 0);
 
     return ret;
 }
@@ -2006,21 +2012,18 @@ NdArray::ConstIter NdArray::data() const {
 }
 
 void NdArray::fill(float v) {
-    FillN(m_sub->v.get(), static_cast<int>(m_sub->size), v);
+    FillN(data(), static_cast<int>(size()), v);
 }
 
 NdArray NdArray::copy() const {
     // Create new substance
-    auto sub = std::make_shared<Substance>(m_sub->size, m_sub->shape);
+    NdArray ret(shape());
     // Copy array data
-    float* dst_data = sub->v.get();
-    const float* src_data = m_sub->v.get();
-    const size_t size = m_sub->size;
-    for (size_t i = 0; i < size; i++) {
-        *(dst_data++) = *(src_data++);
-    }
-    // Create new array
-    return NdArray(sub);
+    auto&& ret_data = ret.data();
+    auto&& src_data = data();
+    const int n = static_cast<int>(size());
+    RunParallel(n, [&](int i) { ret_data[i] = src_data[i]; });
+    return ret;
 }
 
 // ----------------------------- Begin/End Methods -----------------------------
@@ -2042,10 +2045,10 @@ NdArray::ConstIter NdArray::end() const {
 
 // ------------------------------- Cast Operator -------------------------------
 NdArray::operator float() const {
-    if (m_sub->size != 1) {
+    if (size() != 1) {
         throw std::runtime_error("Only size-1 arrays can be casted to float");
     }
-    return *(m_sub->v.get());
+    return *(data());
 }
 
 // ------------------------------- Index Methods -------------------------------
@@ -2056,9 +2059,9 @@ float& NdArray::operator[](int i) {
 
 const float& NdArray::operator[](int i) const {
     // Make the index positive
-    const int p_idx = (0 <= i) ? i : static_cast<int>(m_sub->size) + i;
+    const int p_idx = (0 <= i) ? i : static_cast<int>(size()) + i;
     // Direct access with range check
-    return *(m_sub->v.get() + p_idx);
+    return *(data() + p_idx);
 }
 
 float& NdArray::operator[](const Index& index) {
@@ -2067,7 +2070,7 @@ float& NdArray::operator[](const Index& index) {
 }
 
 const float& NdArray::operator[](const Index& index) const {
-    const auto& shape = m_sub->shape;
+    const auto& shape = this->shape();
     if (index.size() != shape.size()) {
         throw std::runtime_error("Invalid index size");
     }
@@ -2081,7 +2084,7 @@ const float& NdArray::operator[](const Index& index) const {
         i += p_idx;
     }
     // Direct access
-    return *(m_sub->v.get() + i);
+    return *(data() + i);
 }
 
 template <typename... I>
@@ -2114,23 +2117,22 @@ NdArray NdArray::reshape(const Shape& shape) const {
     }
     Shape new_shape = shape;
     if (unknown_idx == shape.size()) {
-        if (m_sub->size != size) {
+        if (this->size() != size) {
             std::stringstream ss;
-            ss << "Invalid reshape (" << m_sub->size << "->" << size << ")";
+            ss << "Invalid reshape (" << this->size() << "->" << size << ")";
             throw std::runtime_error(ss.str());
         }
     } else {
-        if (m_sub->size % size != 0) {
+        if (this->size() % size != 0) {
             throw std::runtime_error("Invalid reshape (-1)");
         }
-        new_shape[unknown_idx] = static_cast<int>(m_sub->size / size);
+        new_shape[unknown_idx] = static_cast<int>(this->size() / size);
     }
 
     // Create reshaped array
-    NdArray ret;
-    ret.m_sub->size = m_sub->size;            // Same size
-    ret.m_sub->shape = std::move(new_shape);  // New shape
-    ret.m_sub->v = m_sub->v;                  // Shared elements
+    auto ret_sub = std::make_shared<Substance>(*m_sub);  // Deep copy except `v`
+    ret_sub->shape = std::move(new_shape);  // Overwrite by new shape
+    NdArray ret(ret_sub);
     return ret;
 }
 
@@ -2149,8 +2151,8 @@ NdArray NdArray::ravel() const {
 }
 
 // -------------------------------- Slice Method -------------------------------
-NdArray NdArray::slice(const SliceIndex& slice_index) const {
-    const Shape& shape = m_sub->shape;
+SliceNdArray NdArray::slice(const SliceIndex& slice_index) const {
+    const Shape& shape = this->shape();
 
     // Compute slice shape and new positive index
     Shape slice_shape;
@@ -2179,7 +2181,7 @@ NdArray NdArray::slice(const SliceIndex& slice_index) const {
 }
 
 template <typename... I>
-NdArray NdArray::slice(std::initializer_list<I>... slice_index) const {
+SliceNdArray NdArray::slice(std::initializer_list<I>... slice_index) const {
     // Cast `initializer_list` to `pair`, and pass to 'slice(SliceIndex)'
     return slice(SliceIndex{CvtToSliceIndexItem(slice_index)...});
 }
@@ -2376,21 +2378,22 @@ template NdArray NdArray::reshape(int, int, int, int, int, int, int, int, int,
                                   int, int) const;
 // For `NdArray slice(std::initializer_list<I>... slice_index) const`
 using ISII = std::initializer_list<int>;  // Initializer of Slice Index Item
-template NdArray NdArray::slice(ISII) const;
-template NdArray NdArray::slice(ISII, ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII,
-                                ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII, ISII,
-                                ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII, ISII,
-                                ISII, ISII) const;
-template NdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII, ISII,
-                                ISII, ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII,
+                                     ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII,
+                                     ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII,
+                                     ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII,
+                                     ISII, ISII, ISII) const;
+template SliceNdArray NdArray::slice(ISII, ISII, ISII, ISII, ISII, ISII, ISII,
+                                     ISII, ISII, ISII, ISII) const;
 
 // --------------------------------- Operators ---------------------------------
 // Print
