@@ -1119,13 +1119,94 @@ static int ComputeReducedIndex(int src_idx,
     return ret_idx;
 }
 
+static void ReduceShapes(Shape& ret_shape, Shape& src_shape,
+                         Axis& sorted_axes) {
+    // Require `ret_shape.size() == src_shape.size()`
+
+    // Remove meaningless dimensions.
+    Shape ret_shape_cleaned, src_shape_cleaned;
+    int size_pool = 1;
+    size_t depth = 0;
+    size_t axis_idx = 0;
+    for (; depth < ret_shape.size(); depth++) {
+        if (ret_shape[depth] == src_shape[depth]) {
+            // Store
+            size_pool *= ret_shape[depth];
+        } else {
+            // Pop
+            if (size_pool != 1) {
+                ret_shape_cleaned.push_back(size_pool);
+                src_shape_cleaned.push_back(size_pool);
+                size_pool = 1;
+            }
+            // Through current dimension
+            ret_shape_cleaned.push_back(ret_shape[depth]);
+            src_shape_cleaned.push_back(src_shape[depth]);
+            // Adjust axis
+            sorted_axes[axis_idx++] =
+                    static_cast<int>(ret_shape_cleaned.size()) - 1;
+        }
+    }
+    // Pop
+    if (size_pool != 1) {
+        ret_shape_cleaned.push_back(size_pool);
+        src_shape_cleaned.push_back(size_pool);
+    }
+    if (axis_idx != sorted_axes.size() - 1) {
+        sorted_axes[axis_idx] = static_cast<int>(ret_shape_cleaned.size()) - 1;
+    }
+    // Return
+    ret_shape = std::move(ret_shape_cleaned);
+    src_shape = std::move(src_shape_cleaned);
+}
+
 template <typename F>
-NdArray ReduceAxisAll(const NdArray::ConstIter& data, const size_t size,
-                      const float init_v, F reduce_op) {
+float ReduceAxisAll(const NdArray::ConstIter& data, const size_t size,
+                    const float init_v, F reduce_op) {
     auto&& op = [&](int i) { return data[i]; };
     const float ret = RunParallelWithReduce(static_cast<int>(size), op,
                                             reduce_op, init_v);
-    return {ret};
+    return ret;
+}
+
+template <typename F>
+void ReduceAxisImpl(const NdArray::Iter& ret_data,
+                    const NdArray::ConstIter& src_data,
+                    const std::vector<int>& ret_child_sizes,
+                    const std::vector<int>& src_child_sizes,
+                    const Shape& src_shape, const int src_size,
+                    const Axis& sorted_axes, F reduce_op) {
+    // TODO: Replace with more effective implementation.
+
+    // Common reduce function with src_idx
+    auto&& reduce = [&](int src_idx) {
+        // Result index
+        const int ret_idx = ComputeReducedIndex(src_idx, ret_child_sizes,
+                                                src_child_sizes, sorted_axes);
+        // Reduce one source element
+        float& ret_v = ret_data[ret_idx];
+        ret_v = reduce_op(ret_v, src_data[src_idx]);
+    };
+
+    // Try top-dim parallelization.
+    // When axis 0 will be reduced, it cannot be in parallel.
+    if (sorted_axes[0] == 0) {
+        // Run sequentially
+        for (int src_idx = 0; src_idx < src_size; src_idx++) {
+            reduce(src_idx);
+        }
+    } else {
+        // Run in parallel
+        const int& n_parallel = src_shape[0];
+        RunParallel(n_parallel, [&](int para_idx) {
+            const int n_sub = src_child_sizes[0];
+            const int base_idx = para_idx * n_sub;
+            for (int sub_idx = 0; sub_idx < n_sub; sub_idx++) {
+                const int src_idx = base_idx + sub_idx;
+                reduce(src_idx);
+            }
+        });
+    }
 }
 
 template <typename F>
@@ -1133,38 +1214,32 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
                    F reduce_op) {
     if (axes.size() == 0) {
         // No Axis -> Reduce all
-        return ReduceAxisAll(src.data(), src.size(), init_v, reduce_op);
+        return {ReduceAxisAll(src.data(), src.size(), init_v, reduce_op)};
     } else {
         // Check it is possible to reduce.
-        const Shape& src_shape = src.shape();
+        Shape src_shape = src.shape();
         const auto& ret_shapes = CheckReductable(src_shape, axes);
         const Shape& ret_shape = std::get<0>(ret_shapes);
-        const Shape& ret_shape_pad = std::get<1>(ret_shapes);
-
-        // Pre-compute child sizes
-        const auto& ret_child_sizes = ComputeChildSizes(ret_shape_pad);
-        const auto& src_child_sizes = ComputeChildSizes(src_shape);
+        Shape ret_shape_pad = std::get<1>(ret_shapes);
 
         // Sort axes
         Axis sorted_axes = axes;
         std::sort(sorted_axes.begin(), sorted_axes.end());
 
+        // Remove extra dimensions of shapes
+        ReduceShapes(ret_shape_pad, src_shape, sorted_axes);
+
+        // Pre-compute child sizes
+        const auto& ret_child_sizes = ComputeChildSizes(ret_shape_pad);
+        const auto& src_child_sizes = ComputeChildSizes(src_shape);
+
         // Result array with value initialization
         NdArray ret(ret_shape, init_v);
 
         // Reduce
-        auto&& ret_data = ret.data();
-        auto&& src_data = src.data();
-
-        const int src_size = static_cast<int>(src.size());
-        for (int src_idx = 0; src_idx < src_size; src_idx++) {
-            // Result index
-            const int ret_idx = ComputeReducedIndex(
-                    src_idx, ret_child_sizes, src_child_sizes, sorted_axes);
-            // Reduce one source element
-            float& ret_v = ret_data[ret_idx];
-            ret_v = reduce_op(ret_v, *(src_data++));
-        }
+        ReduceAxisImpl(ret.data(), src.data(), ret_child_sizes, src_child_sizes,
+                       src_shape, static_cast<int>(src.size()), sorted_axes,
+                       reduce_op);
 
         return ret;
     }
