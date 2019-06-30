@@ -223,11 +223,11 @@ TEST_CASE("NdArray Dot") {
 
 // ------------------------------- Cross product -------------------------------
 TEST_CASE("NdArray Cross") {
-    auto m1_a = NdArray::Arange(WH * 3).reshape(H, W, 3);
-    auto m1_b = NdArray::Arange(WH * 2).reshape(H, W, 2);
-    auto m2_a = NdArray::Ones(W, 3);
-    auto m2_b = NdArray::Ones(W, 2);
     SECTION("(NdMd)") {
+        auto m1_a = NdArray::Arange(WH * 3).reshape(H, W, 3);
+        auto m1_b = NdArray::Arange(WH * 2).reshape(H, W, 2);
+        auto m2_a = NdArray::Ones(W, 3);
+        auto m2_b = NdArray::Ones(W, 2);
         TestSingleMultiThread(
                 "Cross (NdMd)", [&]() {},
                 [&]() { return m1_a.cross(m2_a); },   // 3x3
@@ -238,10 +238,17 @@ TEST_CASE("NdArray Cross") {
 
 // ------------------------------- Axis operation ------------------------------
 TEST_CASE("NdArray Axis") {
-    auto m1 = NdArray::Ones(16000000).reshape(4000, 4000);  // 16777216 is limit
     SECTION("Sum") {
+        const int N = 4000;
+        auto m1 = NdArray::Ones(N * N).reshape(N, N);  // 16777216 is limit
         TestSingleMultiThread(
                 "Sum", [&]() {}, [&]() { return m1.sum(); },
                 [&]() { return m1.sum(Axis{1}); });
+    }
+    SECTION("Max") {
+        auto m1 = NdArray::Arange(WH).reshape(W, H);
+        TestSingleMultiThread(
+                "Max", [&]() {}, [&]() { return m1.max(); },
+                [&]() { return m1.max(Axis{1}); });
     }
 }
