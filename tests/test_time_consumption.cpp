@@ -242,6 +242,6 @@ TEST_CASE("NdArray Axis") {
     SECTION("Sum") {
         TestSingleMultiThread(
                 "Sum", [&]() {}, [&]() { return m1.sum(); },
-                [&]() { return m1.sum(Axis{0}); });
+                [&]() { return m1.sum(Axis{1}); });
     }
 }

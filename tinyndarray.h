@@ -1066,32 +1066,6 @@ inline NdArray ApplyElemWiseOpInplace(float lhs, NdArray&& rhs, F op) {
 }
 
 // ------------------- Utilities for NdArray (Axis reduction) ------------------
-static int ComputeReducedIndex(int src_idx,
-                               const std::vector<int>& ret_child_sizes,
-                               const std::vector<int>& src_child_sizes,
-                               const Axis& sorted_axes) {
-    // Convert source index to result index
-    // [2, (3), 4, (5), 6]
-    int ret_idx = 0;
-    for (auto&& axis : sorted_axes) {
-        if (axis == 0) {
-            continue;  // No upper dimension
-        }
-        const size_t axis_l = static_cast<size_t>(axis);
-        // Accumulate upper dimension
-        const int ret_idx_base = src_idx / src_child_sizes[axis_l - 1];
-        ret_idx += ret_idx_base * ret_child_sizes[axis_l];
-        // Remove processed dimension
-        src_idx = src_idx % src_child_sizes[axis_l];
-    }
-
-    // Add rest dimension
-    const int last_axis = sorted_axes.back();
-    ret_idx += src_idx % src_child_sizes[static_cast<size_t>(last_axis)];
-
-    return ret_idx;
-}
-
 static auto CheckReductable(const Shape& shape, const Axis& axes) {
     // Mark reduction axes
     std::vector<char> mark(shape.size(), false);
@@ -1119,21 +1093,47 @@ static auto CheckReductable(const Shape& shape, const Axis& axes) {
                                     std::move(ret_shape_pad));
 }
 
+static int ComputeReducedIndex(int src_idx,
+                               const std::vector<int>& ret_child_sizes,
+                               const std::vector<int>& src_child_sizes,
+                               const Axis& sorted_axes) {
+    // Convert source index to result index
+    // [2, (3), 4, (5), 6]
+    int ret_idx = 0;
+    for (auto&& axis : sorted_axes) {
+        if (axis == 0) {
+            continue;  // No upper dimension
+        }
+        const size_t axis_l = static_cast<size_t>(axis);
+        // Accumulate upper dimension
+        const int ret_idx_base = src_idx / src_child_sizes[axis_l - 1];
+        ret_idx += ret_idx_base * ret_child_sizes[axis_l];
+        // Remove processed dimension
+        src_idx = src_idx % src_child_sizes[axis_l];
+    }
+
+    // Add rest dimension
+    const int last_axis = sorted_axes.back();
+    ret_idx += src_idx % src_child_sizes[static_cast<size_t>(last_axis)];
+
+    return ret_idx;
+}
+
 template <typename F>
-NdArray ReduceAxisAll(const NdArray& src, const float init_v, F reduce_op) {
-    auto&& data = src.data();
+NdArray ReduceAxisAll(const NdArray::ConstIter& data, const size_t size,
+                      const float init_v, F reduce_op) {
     auto&& op = [&](int i) { return data[i]; };
-    const float ret = RunParallelWithReduce(static_cast<int>(src.size()), op,
+    const float ret = RunParallelWithReduce(static_cast<int>(size), op,
                                             reduce_op, init_v);
     return {ret};
 }
 
 template <typename F>
 NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
-                   F op) {
+                   F reduce_op) {
     if (axes.size() == 0) {
         // No Axis -> Reduce all
-        return ReduceAxisAll(src, init_v, op);
+        return ReduceAxisAll(src.data(), src.size(), init_v, reduce_op);
     } else {
         // Check it is possible to reduce.
         const Shape& src_shape = src.shape();
@@ -1155,6 +1155,7 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
         // Reduce
         auto&& ret_data = ret.data();
         auto&& src_data = src.data();
+
         const int src_size = static_cast<int>(src.size());
         for (int src_idx = 0; src_idx < src_size; src_idx++) {
             // Result index
@@ -1162,7 +1163,7 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
                     src_idx, ret_child_sizes, src_child_sizes, sorted_axes);
             // Reduce one source element
             float& ret_v = ret_data[ret_idx];
-            ret_v = op(ret_v, *(src_data++));
+            ret_v = reduce_op(ret_v, *(src_data++));
         }
 
         return ret;
@@ -1171,13 +1172,13 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
 
 template <typename F>
 NdArray ReduceAxisNoEmpty(const NdArray& src, const Axis& axes,
-                          const float init_v, F op) {
+                          const float init_v, F reduce_op) {
     // Check empty
     if (src.size() == 0) {
         throw std::runtime_error("zero-size array to reduction operation");
     }
     // Call normally
-    return ReduceAxis(src, axes, init_v, op);
+    return ReduceAxis(src, axes, init_v, reduce_op);
 }
 
 // ----------------------- Utilities for NdArray (Print) -----------------------
