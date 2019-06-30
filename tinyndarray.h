@@ -588,6 +588,12 @@ float RunParallelWithReduce(int size, F op, R reduce, float init_v) {
     }
 }
 
+template <typename Iter>
+void FillN(Iter&& iter, const int n, float v) {
+    // Fill in parallel
+    RunParallel(n, [&](int i) { iter[i] = v; });
+}
+
 template <typename F>
 inline void ApplyOpSimple(NdArray& ret, F op) {
     auto&& ret_data = ret.data();
@@ -1347,7 +1353,7 @@ void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
                                 const NdArray::ConstIter& r_data,
                                 const int n_col, const int n_contract) {
     // Zero initialization
-    std::fill_n(ret_data, n_col, 0.f);
+    FillN(ret_data, n_col, 0.f);
     // Col-major dot product
     int r_idx = 0;
     for (int l_idx = 0; l_idx < n_contract; l_idx++) {
@@ -1912,14 +1918,13 @@ NdArray NdArray::Arange(float stop) {
 }
 
 NdArray NdArray::Arange(float start, float stop, float step) {
-    const size_t n = static_cast<size_t>(std::ceil((stop - start) / step));
     // Create empty array
-    NdArray ret({static_cast<int>(n)});
+    const int n = static_cast<int>(std::ceil((stop - start) / step));
+    NdArray ret({n});
     // Fill by step
     auto&& data = ret.data();
-    for (size_t i = 0; i < n; i++) {
-        *(data++) = start + step * static_cast<float>(i);
-    }
+    RunParallel(n,
+                [&](int i) { data[i] = start + step * static_cast<float>(i); });
     return ret;
 }
 
@@ -2001,7 +2006,7 @@ NdArray::ConstIter NdArray::data() const {
 }
 
 void NdArray::fill(float v) {
-    std::fill_n(m_sub->v.get(), m_sub->size, v);
+    FillN(m_sub->v.get(), static_cast<int>(m_sub->size), v);
 }
 
 NdArray NdArray::copy() const {

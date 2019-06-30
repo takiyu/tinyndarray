@@ -108,6 +108,17 @@ void TestSingleMultiThread(const std::string& tag, F prep_func, OP... ops) {
     }
 }
 
+// ---------------------------- Fill Initialization ----------------------------
+TEST_CASE("NdArray Fill-initialization") {
+    SECTION("(Zeros/Ones/Arange)") {
+        TestSingleMultiThread(
+                "Fill-initialization (Zeros/Ones/Arange)", [&]() {},
+                [&]() { return NdArray::Zeros(WH); },
+                [&]() { return NdArray::Ones(WH); },
+                [&]() { return NdArray::Arange(WH); });
+    }
+}
+
 // -------------------------- Element-wise Operation ---------------------------
 TEST_CASE("NdArray Element-wise") {
     SECTION("(NdArray, float)") {
