@@ -25,11 +25,10 @@ using Index = std::vector<int>;
 using Axis = std::vector<int>;
 class SliceNdArray;
 using SliceIndex = std::vector<std::pair<int, int>>;
-template <bool C>
-using NdArrayT = typename std::conditional_t<C, const NdArray, NdArray>;
-template <bool C>
-using SliceNdArrayT =
-        typename std::conditional_t<C, const SliceNdArray, SliceNdArray>;
+template <bool C, bool S>
+using NdArrayT = typename std::conditional_t<C,
+      typename std::conditional_t<S, const SliceNdArray, const NdArray>,
+      typename std::conditional_t<S, SliceNdArray, NdArray>>;
 template <bool C>
 using FloatT = typename std::conditional_t<C, const float, float>;
 
@@ -54,10 +53,12 @@ using FloatList = typename FloatListHelper<D>::type;
 // =============================================================================
 class NdArray {
 public:
-    template <bool C>
+    template <bool C, bool S>
     class IterBase;
-    using Iter = IterBase<false>;
-    using ConstIter = IterBase<true>;
+    using Iter = IterBase<false, false>;
+    using ConstIter = IterBase<true, false>;
+    using SliceIter = IterBase<false, true>;
+    using SliceConstIter = IterBase<true, true>;
 
     NdArray();
     NdArray(const NdArray&);
@@ -116,12 +117,12 @@ public:
     void fill(float v);
     NdArray copy() const;
 
-    virtual Iter data();
-    virtual ConstIter data() const;
-    virtual Iter begin();
-    virtual Iter end();
-    virtual ConstIter begin() const;
-    virtual ConstIter end() const;
+    Iter data();
+    ConstIter data() const;
+    Iter begin();
+    Iter end();
+    ConstIter begin() const;
+    ConstIter end() const;
 
     operator float() const;
 
@@ -156,11 +157,6 @@ public:
 
     class Substance;
 
-    template <bool C>
-    class IterImpl;
-    template <bool C>
-    class SliceIterImpl;
-
 protected:
     std::shared_ptr<Substance> m_sub;
     NdArray(std::shared_ptr<Substance> sub);
@@ -178,92 +174,45 @@ public:
     using NdArray::NdArray;  // No special constructors
     virtual ~SliceNdArray() override;
 
-    virtual Iter data() override;
-    virtual ConstIter data() const override;
-    virtual Iter begin() override;
-    virtual Iter end() override;
-    virtual ConstIter begin() const override;
-    virtual ConstIter end() const override;
+    SliceIter data();
+    SliceConstIter data() const;
+    SliceIter begin();
+    SliceIter end();
+    SliceConstIter begin() const;
+    SliceConstIter end() const;
 };
 
 // --------------------------------- Iterator ----------------------------------
-template <bool C>
+template <bool C, bool S>
 class NdArray::IterBase {
 public:
-    IterBase(NdArrayT<C>& parent);
-    IterBase(NdArrayT<C>& parent, FloatT<C>* ptr);
-    IterBase(SliceNdArrayT<C>& parent);
-    IterBase(SliceNdArrayT<C>& parent, FloatT<C>* ptr);
-
-    IterBase(const IterBase& lhs);
-    IterBase(IterBase&& lhs);
+    IterBase(NdArrayT<C, S>& parent);
+    IterBase(NdArrayT<C, S>& parent, FloatT<C>* ptr);
     ~IterBase();
 
     FloatT<C>& operator*();
     FloatT<C>& operator*() const;
-    FloatT<C>& operator[](int i);
-    FloatT<C>& operator[](int i) const;
     bool operator==(const IterBase& other) const;
     bool operator!=(const IterBase& other) const;
     IterBase operator+(int i) const;
     IterBase operator-(int i) const;
+    FloatT<C>& operator[](int i);
+    FloatT<C>& operator[](int i) const;
     IterBase& operator++();
     IterBase& operator--();
     IterBase& operator+=(int i);
     IterBase& operator-=(int i);
-    operator NdArray::ConstIter() const;
-
-public:
-    IterBase(const IterImpl<C>& impl);
-    IterBase(const SliceIterImpl<C>& impl);
-    std::unique_ptr<IterImpl<C>> m_impl;
-};
-
-// -------------------------- Iterator Implementation --------------------------
-template <bool C>
-class NdArray::IterImpl {
-public:
-    IterImpl(NdArrayT<C>& parent);
-    IterImpl(NdArrayT<C>& parent, FloatT<C>* ptr);
-    virtual ~IterImpl();
-    FloatT<C>& operator*();
-    FloatT<C>& operator*() const;
-    bool operator==(const IterImpl& other) const;
-    bool operator!=(const IterImpl& other) const;
-    IterImpl operator+(int i) const;
-    IterImpl operator-(int i) const;
-    virtual FloatT<C>& operator[](int i);
-    virtual FloatT<C>& operator[](int i) const;
-    virtual IterImpl& operator++();
-    virtual IterImpl& operator--();
-    virtual IterImpl& operator+=(int i);
-    virtual IterImpl& operator-=(int i);
-    operator IterImpl<true>() const;  // Cast to const
-
-protected:
-    NdArrayT<C>& m_parent;
-    FloatT<C>* m_ptr;
-};
-
-// ----------------------- Sliced Iterator Implementation ----------------------
-template <bool C>
-class NdArray::SliceIterImpl : public NdArray::IterImpl<C> {
-public:
-    SliceIterImpl(SliceNdArrayT<C>& parent);
-    SliceIterImpl(SliceNdArrayT<C>& parent, FloatT<C>* ptr);
-    virtual ~SliceIterImpl() override;
-    virtual FloatT<C>& operator[](int i) override;
-    virtual FloatT<C>& operator[](int i) const override;
-    virtual SliceIterImpl& operator++() override;
-    virtual SliceIterImpl& operator--() override;
-    virtual SliceIterImpl& operator+=(int i) override;
-    virtual SliceIterImpl& operator-=(int i) override;
-    operator SliceIterImpl<true>() const;  // Cast to const
+    operator IterBase<true, S>() const;  // Cast to const
 
 private:
     void initPtr();
     float* getForwardedPtr(int forward_cnt) const;
-    SliceNdArrayT<C>& m_slice_parent;
+
+    friend void InitIterPtr(NdArray::IterBase<C, S>& iter);
+//     friend void InitIterPtr(NdArray::IterBase<C, S>& iter);
+
+    NdArrayT<C, S>& m_parent;
+    FloatT<C>* m_ptr;
 };
 
 // --------------------------------- Operators ---------------------------------
@@ -1675,6 +1624,21 @@ static NdArray InvertNdArrayInplace(NdArray&& src) {
     return std::move(src);
 }
 
+// ------------------------------- Iterator Utils ------------------------------
+template <bool C, bool S>
+void InitIterPtr(NdArray::IterBase<C, S>& iter);
+
+template <bool C>
+void InitIterPtr(NdArray::IterBase<C, false>& iter) {
+    // Do nothing
+    (void)iter;
+}
+
+template <bool C>
+void InitIterPtr(NdArray::IterBase<C, true>& iter) {
+    iter->initPtr();
+}
+
 // =============================================================================
 // ============================ NdArray Definition =============================
 // =============================================================================
@@ -1717,264 +1681,91 @@ public:
 };
 
 // --------------------------------- Iterator ----------------------------------
-// Constructors with NdArray
-template <bool C>
-NdArray::IterBase<C>::IterBase(NdArrayT<C>& parent) :
-    m_impl(std::make_unique<IterImpl<C>>(parent)) {
+template <bool C, bool S>
+NdArray::IterBase<C, S>::IterBase(NdArrayT<C, S>& parent)
+    : m_parent(parent), m_ptr(parent.m_sub->v.get()) {
+//         InitIterPtr(*this);
 }
 
-template <bool C>
-NdArray::IterBase<C>::IterBase(NdArrayT<C>& parent, FloatT<C>* ptr) :
-    m_impl(std::make_unique<IterImpl<C>>(parent, ptr)) {
-}
-
-// Constructors with SliceNdArray
-template <bool C>
-NdArray::IterBase<C>::IterBase(SliceNdArrayT<C>& parent) :
-    m_impl(std::make_unique<SliceIterImpl<C>>(parent)) {
-}
-
-template <bool C>
-NdArray::IterBase<C>::IterBase(SliceNdArrayT<C>& parent, FloatT<C>* ptr) :
-    m_impl(std::make_unique<SliceIterImpl<C>>(parent, ptr)) {
-}
-
-// Copy constructor
-template <bool C>
-NdArray::IterBase<C>::IterBase(const IterBase& lhs) {
-    auto p = dynamic_cast<SliceIterImpl<C>*>(lhs.m_impl.get());
-    if (p == nullptr) {
-        m_impl = std::make_unique<IterImpl<C>>(*lhs.m_impl);
-    } else {
-        m_impl = std::make_unique<SliceIterImpl<C>>(*p);
-    }
-}
-
-// Move constructor
-template <bool C>
-NdArray::IterBase<C>::IterBase(IterBase&& lhs) = default;
-
-// Constructors with Impl classes
-template <bool C>
-NdArray::IterBase<C>::IterBase(const IterImpl<C>& impl) {
-    auto p = dynamic_cast<SliceIterImpl<C>&>(impl);
-    if (p == nullptr) {
-        m_impl = std::make_unique<IterImpl<C>>(impl);
-    } else {
-        m_impl = std::make_unique<SliceIterImpl<C>>(*p);
-    }
-}
-
-template <bool C>
-NdArray::IterBase<C>::IterBase(const SliceIterImpl<C>& impl) {
-    m_impl = std::make_unique<IterImpl<C>>(impl);
-}
-
-// Destructor
-template <bool C>
-NdArray::IterBase<C>::~IterBase() = default;
-
-// Bridging methods
-template <bool C>
-FloatT<C>& NdArray::IterBase<C>::operator*() {
-    return *(*m_impl);
-}
-template <bool C>
-FloatT<C>& NdArray::IterBase<C>::operator*() const {
-    return *(*m_impl);
-}
-template <bool C>
-FloatT<C>& NdArray::IterBase<C>::operator[](int i) {
-    return (*m_impl)[i];
-}
-template <bool C>
-FloatT<C>& NdArray::IterBase<C>::operator[](int i) const {
-    return (*m_impl)[i];
-}
-template <bool C>
-bool NdArray::IterBase<C>::operator==(const IterBase& other) const {
-    return (*m_impl) == (*other.m_impl);
-}
-template <bool C>
-bool NdArray::IterBase<C>::operator!=(const IterBase& other) const {
-    return (*m_impl) != (*other.m_impl);
-}
-template <bool C>
-NdArray::IterBase<C> NdArray::IterBase<C>::operator+(int i) const {
-    return (*m_impl) + i;
-}
-template <bool C>
-NdArray::IterBase<C> NdArray::IterBase<C>::operator-(int i) const {
-    return (*m_impl) - i;
-}
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator++() {
-    ++(*m_impl);
-    return *this;
-}
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator--() {
-    --(*m_impl);
-    return *this;
-}
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator+=(int i) {
-    (*m_impl) += i;
-    return *this;
-}
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator-=(int i) {
-    (*m_impl) -= i;
-    return *this;
-}
-template <bool C>
-NdArray::IterBase<C>::operator NdArray::ConstIter() const {
-    auto p = dynamic_cast<SliceIterImpl<C>*>(m_impl.get());
-    if (p == nullptr) {
-        return static_cast<IterImpl<true>>(*m_impl);
-    } else {
-        return static_cast<SliceIterImpl<true>>(*p);
-    }
-}
-
-// -------------------------- Iterator Implementation --------------------------
-template <bool C>
-NdArray::IterImpl<C>::IterImpl(NdArrayT<C>& parent)
-    : m_parent(parent), m_ptr(parent.m_sub->v.get()) {}
-
-template <bool C>
-NdArray::IterImpl<C>::IterImpl(NdArrayT<C>& parent, FloatT<C>* ptr)
+template <bool C, bool S>
+NdArray::IterBase<C, S>::IterBase(NdArrayT<C, S>& parent, FloatT<C>* ptr)
     : m_parent(parent), m_ptr(ptr) {}
 
-template <bool C>
-NdArray::IterImpl<C>::~IterImpl() = default;
+template <bool C, bool S>
+NdArray::IterBase<C, S>::~IterBase() = default;
 
-template <bool C>
-FloatT<C>& NdArray::IterImpl<C>::operator*() {
+template <bool C, bool S>
+FloatT<C>& NdArray::IterBase<C, S>::operator*() {
     return *m_ptr;
 }
 
-template <bool C>
-FloatT<C>& NdArray::IterImpl<C>::operator*() const {
+template <bool C, bool S>
+FloatT<C>& NdArray::IterBase<C, S>::operator*() const {
     return *m_ptr;
 }
 
-template <bool C>
-bool NdArray::IterImpl<C>::operator==(const IterImpl<C>& other) const {
+template <bool C, bool S>
+bool NdArray::IterBase<C, S>::operator==(const IterBase<C, S>& other) const {
     return m_ptr == other.m_ptr;
 }
 
-template <bool C>
-bool NdArray::IterImpl<C>::operator!=(const IterImpl<C>& other) const {
+template <bool C, bool S>
+bool NdArray::IterBase<C, S>::operator!=(const IterBase<C, S>& other) const {
     return m_ptr != other.m_ptr;
 }
 
-template <bool C>
-NdArray::IterImpl<C> NdArray::IterImpl<C>::operator+(int i) const {
+template <bool C, bool S>
+NdArray::IterBase<C, S> NdArray::IterBase<C, S>::operator+(int i) const {
     return {m_parent, m_ptr + i};
 }
 
-template <bool C>
-NdArray::IterImpl<C> NdArray::IterImpl<C>::operator-(int i) const {
+template <bool C, bool S>
+NdArray::IterBase<C, S> NdArray::IterBase<C, S>::operator-(int i) const {
     return {m_parent, m_ptr - i};
 }
 
-template <bool C>
-FloatT<C>& NdArray::IterImpl<C>::operator[](int i) {
+template <bool C, bool S>
+FloatT<C>& NdArray::IterBase<C, S>::operator[](int i) {
     return m_ptr[i];
 }
 
-template <bool C>
-FloatT<C>& NdArray::IterImpl<C>::operator[](int i) const {
+template <bool C, bool S>
+FloatT<C>& NdArray::IterBase<C, S>::operator[](int i) const {
     return m_ptr[i];
 }
 
-template <bool C>
-NdArray::IterImpl<C>& NdArray::IterImpl<C>::operator++() {
+template <bool C, bool S>
+NdArray::IterBase<C, S>& NdArray::IterBase<C, S>::operator++() {
     m_ptr++;
     return *this;
 }
 
-template <bool C>
-NdArray::IterImpl<C>& NdArray::IterImpl<C>::operator--() {
+template <bool C, bool S>
+NdArray::IterBase<C, S>& NdArray::IterBase<C, S>::operator--() {
     m_ptr--;
     return *this;
 }
 
-template <bool C>
-NdArray::IterImpl<C>& NdArray::IterImpl<C>::operator+=(int i) {
+template <bool C, bool S>
+NdArray::IterBase<C, S>& NdArray::IterBase<C, S>::operator+=(int i) {
     m_ptr += i;
     return *this;
 }
 
-template <bool C>
-NdArray::IterImpl<C>& NdArray::IterImpl<C>::operator-=(int i) {
+template <bool C, bool S>
+NdArray::IterBase<C, S>& NdArray::IterBase<C, S>::operator-=(int i) {
     m_ptr -= i;
     return *this;
 }
 
-template <bool C>
-NdArray::IterImpl<C>::operator NdArray::IterImpl<true>() const {
-    return IterImpl<true>{m_parent, m_ptr};
+template <bool C, bool S>
+NdArray::IterBase<C, S>::operator NdArray::IterBase<true, S>() const {
+    return IterBase<true, S>{m_parent, m_ptr};
 }
 
-// ----------------------- Sliced Iterator Implementation ----------------------
-template <bool C>
-NdArray::SliceIterImpl<C>::SliceIterImpl(SliceNdArrayT<C>& parent)
-    : IterImpl<C>(parent), m_slice_parent(parent) {
-    initPtr();  // Set pointer
-}
-
-template <bool C>
-NdArray::SliceIterImpl<C>::SliceIterImpl(SliceNdArrayT<C>& parent, FloatT<C>* ptr)
-    : IterImpl<C>(parent, ptr), m_slice_parent(parent) {}
-
-template <bool C>
-NdArray::SliceIterImpl<C>::~SliceIterImpl() = default;
-
-template <bool C>
-FloatT<C>& NdArray::SliceIterImpl<C>::operator[](int i) {
-    return *getForwardedPtr(i);
-}
-
-template <bool C>
-FloatT<C>& NdArray::SliceIterImpl<C>::operator[](int i) const {
-    return *getForwardedPtr(i);
-}
-
-template <bool C>
-NdArray::SliceIterImpl<C>& NdArray::SliceIterImpl<C>::operator++() {
-    this->m_ptr = getForwardedPtr(1);
-    return *this;
-}
-
-template <bool C>
-NdArray::SliceIterImpl<C>& NdArray::SliceIterImpl<C>::operator--() {
-    this->m_ptr = getForwardedPtr(-1);
-    return *this;
-}
-
-template <bool C>
-NdArray::SliceIterImpl<C>& NdArray::SliceIterImpl<C>::operator+=(int i) {
-    this->m_ptr = getForwardedPtr(i);
-    return *this;
-}
-
-template <bool C>
-NdArray::SliceIterImpl<C>& NdArray::SliceIterImpl<C>::operator-=(int i) {
-    this->m_ptr = getForwardedPtr(-i);
-    return *this;
-}
-
-template <bool C>
-NdArray::SliceIterImpl<C>::operator NdArray::SliceIterImpl<true>() const {
-    // `this` is required because of template's two phase lookup
-    return SliceIterImpl<true>{this->m_slice_parent, this->m_ptr};
-}
-
-template <bool C>
-void NdArray::SliceIterImpl<C>::initPtr() {
-    const auto& sub = *(this->m_slice_parent.m_sub);
+template <bool C, bool S>
+void NdArray::IterBase<C, S>::initPtr() {
+    const auto& sub = *(this->m_parent.m_sub);
     // Check slice
     if (!sub.is_slice) {
         throw std::runtime_error("Bug of slice");
@@ -1990,9 +1781,9 @@ void NdArray::SliceIterImpl<C>::initPtr() {
     this->m_ptr = sub.v.get() + idx;
 }
 
-template <bool C>
-float* NdArray::SliceIterImpl<C>::getForwardedPtr(int forward_cnt) const {
-    const auto& sub = *(this->m_slice_parent.m_sub);
+template <bool C, bool S>
+float* NdArray::IterBase<C, S>::getForwardedPtr(int forward_cnt) const {
+    const auto& sub = *(this->m_parent.m_sub);
     // Check slice
     if (!sub.is_slice) {
         throw std::runtime_error("Bug of slice");
@@ -2036,13 +1827,56 @@ float* NdArray::SliceIterImpl<C>::getForwardedPtr(int forward_cnt) const {
     return sub.v.get() + new_idx;
 }
 
+// ------------------------- Sliced Iterator override --------------------------
+// template <bool C>
+// NdArray::SliceIterBase<C>::SliceIterBase(SliceNdArrayT<C>& parent)
+//     : m_parent(parent), m_ptr(parent.m_sub->v.get()) {
+//     initPtr();  // Set pointer
+// }
+//
+// template <bool C>
+// NdArray::SliceIterBase<C>::SliceIterBase(SliceNdArrayT<C>& parent, FloatT<C>* ptr)
+//     : IterBase<C>(parent, ptr), m_slice_parent(parent) {}
+//
+// template <bool C>
+// FloatT<C>& NdArray::SliceIterBase<C>::operator[](int i) {
+//     return *getForwardedPtr(i);
+// }
+//
+// template <bool C>
+// FloatT<C>& NdArray::SliceIterBase<C>::operator[](int i) const {
+//     return *getForwardedPtr(i);
+// }
+//
+// template <bool C>
+// NdArray::SliceIterBase<C>& NdArray::SliceIterBase<C>::operator++() {
+//     this->m_ptr = getForwardedPtr(1);
+//     return *this;
+// }
+//
+// template <bool C>
+// NdArray::SliceIterBase<C>& NdArray::SliceIterBase<C>::operator--() {
+//     this->m_ptr = getForwardedPtr(-1);
+//     return *this;
+// }
+//
+// template <bool C>
+// NdArray::SliceIterBase<C>& NdArray::SliceIterBase<C>::operator+=(int i) {
+//     this->m_ptr = getForwardedPtr(i);
+//     return *this;
+// }
+//
+// template <bool C>
+// NdArray::SliceIterBase<C>& NdArray::SliceIterBase<C>::operator-=(int i) {
+//     this->m_ptr = getForwardedPtr(-i);
+//     return *this;
+// }
+
 // ------------------- Template Specializations of Iterators -------------------
-template class NdArray::IterBase<true>;
-template class NdArray::IterBase<false>;
-template class NdArray::IterImpl<true>;
-template class NdArray::IterImpl<false>;
-template class NdArray::SliceIterImpl<true>;
-template class NdArray::SliceIterImpl<false>;
+template class NdArray::IterBase<false, false>;
+template class NdArray::IterBase<true, false>;
+template class NdArray::IterBase<false, true>;
+template class NdArray::IterBase<true, true>;
 
 // ------------------------------- Static Member -------------------------------
 std::random_device NdArray::s_rand_seed;
@@ -2264,28 +2098,28 @@ NdArray::ConstIter NdArray::end() const {
 }
 
 // --------------------- Iterator Methods for SliceNdArray ---------------------
-NdArray::Iter SliceNdArray::data() {
-    return Iter(*this);
+NdArray::SliceIter SliceNdArray::data() {
+    return SliceIter(*this);
 }
 
-NdArray::ConstIter SliceNdArray::data() const {
-    return ConstIter(*this);
+NdArray::SliceConstIter SliceNdArray::data() const {
+    return SliceConstIter(*this);
 }
 
-NdArray::Iter SliceNdArray::begin() {
-    return Iter(*this);
+NdArray::SliceIter SliceNdArray::begin() {
+    return SliceIter(*this);
 }
 
-NdArray::Iter SliceNdArray::end() {
-    return Iter(*this, m_sub->v.get() + m_sub->size);  // TODO
+NdArray::SliceIter SliceNdArray::end() {
+    return SliceIter(*this, m_sub->v.get() + m_sub->size);  // TODO
 }
 
-NdArray::ConstIter SliceNdArray::begin() const {
-    return ConstIter(*this);
+NdArray::SliceConstIter SliceNdArray::begin() const {
+    return SliceConstIter(*this);
 }
 
-NdArray::ConstIter SliceNdArray::end() const {
-    return ConstIter(*this, m_sub->v.get() + m_sub->size);  // TODO
+NdArray::SliceConstIter SliceNdArray::end() const {
+    return SliceConstIter(*this, m_sub->v.get() + m_sub->size);  // TODO
 }
 
 // ------------------------------- Cast Operator -------------------------------
