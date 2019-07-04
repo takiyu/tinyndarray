@@ -1263,11 +1263,11 @@ NdArray ReduceAxisNoEmpty(const NdArray& src, const Axis& axes,
 }
 
 // ----------------------- Utilities for NdArray (Print) -----------------------
-static void OutputArrayLine(std::ostream& os, NdArray::ConstIter& data,
-                            size_t size) {
+static void OutputArrayLine(std::ostream& os, const NdArray::ConstIter& data,
+                            const int size) {
     os << "[";  // Begin of a line
-    for (size_t i = 0; i < size; i++) {
-        os << *(data++);  // Output an element
+    for (int i = 0; i < size; i++) {
+        os << data[i];  // Output an element
         if (i == size - 1) {
             os << "]";  // End of a line
         } else {
@@ -1276,9 +1276,12 @@ static void OutputArrayLine(std::ostream& os, NdArray::ConstIter& data,
     }
 }
 
-static void OutputArrayMultiDim(std::ostream& os, NdArray::ConstIter& data,
-                                const Shape& shape, size_t depth) {
-    for (size_t i = 0; i < static_cast<size_t>(shape[depth]); i++) {
+static void OutputArrayMultiDim(std::ostream& os,
+                                const NdArray::ConstIter& data,
+                                const Shape& shape,
+                                const std::vector<int>& child_sizes,
+                                size_t depth) {
+    for (int i = 0; i < shape[depth]; i++) {
         // Heading
         if (i == 0) {
             os << "[";  // begin of array
@@ -1289,14 +1292,16 @@ static void OutputArrayMultiDim(std::ostream& os, NdArray::ConstIter& data,
         }
 
         // Output internal array
+        const int& child_size = child_sizes[depth];
         if (depth == shape.size() - 2) {
-            OutputArrayLine(os, data, static_cast<size_t>(shape[depth + 1]));
+            OutputArrayLine(os, data + child_size * i, shape[depth + 1]);
         } else {
-            OutputArrayMultiDim(os, data, shape, depth + 1);
+            OutputArrayMultiDim(os, data + child_size * i, shape, child_sizes,
+                                depth + 1);
         }
 
         // Tailing
-        if (i == static_cast<size_t>(shape[depth]) - 1) {
+        if (i == shape[depth] - 1) {
             os << "]";  // End of array
         } else {
             os << "," << std::endl;  // Splitter of array
@@ -1305,19 +1310,19 @@ static void OutputArrayMultiDim(std::ostream& os, NdArray::ConstIter& data,
 }
 
 static void OutputNdArray(std::ostream& os, const NdArray& x) {
-    const size_t size = x.size();
+    const int size = static_cast<int>(x.size());
     const Shape& shape = x.shape();
-    auto&& data = x.data();
+    const std::vector<int>& child_sizes = ComputeChildSizes(shape);
 
     if (size == 0 || shape.size() == 0) {
         // Empty
         os << "[]";
     } else if (shape.size() == 1) {
         // 1-dim
-        OutputArrayLine(os, data, size);
+        OutputArrayLine(os, x.data(), size);
     } else {
         // Multi-dim
-        OutputArrayMultiDim(os, data, shape, 0);
+        OutputArrayMultiDim(os, x.data(), shape, child_sizes, 0);
     }
 }
 
@@ -1612,9 +1617,10 @@ static void InvertNdArray2d(NdArray::Iter ret_data, NdArray::ConstIter src_data,
         }
     }
 
+    int ret_idx = 0;
     for (int row = 0; row < order; row++) {
         for (int col = order; col < order_2; col++) {
-            *(ret_data++) = tmp_data[row * order_2 + col];
+            ret_data[ret_idx++] = tmp_data[row * order_2 + col];
         }
     }
 }

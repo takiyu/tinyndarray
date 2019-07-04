@@ -218,6 +218,9 @@ TEST_CASE("NdArray") {
     SECTION("Basic method") {
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);
         auto m2 = m1.copy();
+        CheckNdArray(m2,
+                     "[[0, 1, 2],\n"
+                     " [3, 4, 5]]");
         m2.fill(-1);
         CheckNdArray(m1,
                      "[[0, 1, 2],\n"

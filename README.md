@@ -8,6 +8,11 @@ I look forward to your pull-request.
 
 * C++14 compiler
 
+## Sample Code
+<pre lang="cpp">
+   // TODO
+</pre>
+
 ## Quick Guide
 
 TinyNdArray supports only float array.
