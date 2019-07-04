@@ -160,8 +160,7 @@ private:
 // --------------------------------- Iterator ----------------------------------
 class NdArray::Iter {
 public:
-    Iter(NdArray& parent_);
-    Iter(NdArray& parent_, float* p_);
+    Iter(float* p_);
     float& operator*();
     float& operator*() const;
     float& operator[](int i);
@@ -179,15 +178,13 @@ public:
     operator ConstIter() const;
 
 private:
-    NdArray& parent;
     float* p;
 };
 
 // ------------------------------ Const Iterator -------------------------------
 class NdArray::ConstIter {
 public:
-    ConstIter(const NdArray& parent_);
-    ConstIter(const NdArray& parent_, const float* p_);
+    ConstIter(const float* p_);
     const float& operator*() const;
     const float& operator[](int i) const;
     ConstIter& operator++();
@@ -202,7 +199,6 @@ public:
     bool operator!=(const ConstIter& other) const;
 
 private:
-    const NdArray& parent;
     const float* p;
 };
 
@@ -1688,10 +1684,7 @@ public:
 };
 
 // --------------------------------- Iterator ----------------------------------
-NdArray::Iter::Iter(NdArray& parent_)
-    : parent(parent_), p(parent_.m_sub->v.get()) {}
-
-NdArray::Iter::Iter(NdArray& parent_, float* p_) : parent(parent_), p(p_) {}
+NdArray::Iter::Iter(float* p_) : p(p_) {}
 
 float& NdArray::Iter::operator*() {
     return *p;
@@ -1732,11 +1725,11 @@ NdArray::Iter NdArray::Iter::operator--(int) {
 }
 
 NdArray::Iter NdArray::Iter::operator+(int i) const {
-    return {parent, p + i};
+    return {p + i};
 }
 
 NdArray::Iter NdArray::Iter::operator-(int i) const {
-    return {parent, p - i};
+    return {p - i};
 }
 
 NdArray::Iter& NdArray::Iter::operator+=(int i) {
@@ -1758,15 +1751,12 @@ bool NdArray::Iter::operator!=(const Iter& other) const {
 }
 
 NdArray::Iter::operator NdArray::ConstIter() const {
-    return NdArray::ConstIter{parent, p};
+    return NdArray::ConstIter{p};
 }
 
 // ------------------------------ Const Iterator -------------------------------
-NdArray::ConstIter::ConstIter(const NdArray& parent_)
-    : parent(parent_), p(parent_.m_sub->v.get()) {}
-
-NdArray::ConstIter::ConstIter(const NdArray& parent_, const float* p_)
-    : parent(parent_), p(p_) {}
+NdArray::ConstIter::ConstIter(const float* p_)
+    : p(p_) {}
 
 const float& NdArray::ConstIter::operator*() const {
     return *p;
@@ -1799,11 +1789,11 @@ NdArray::ConstIter NdArray::ConstIter::operator--(int) {
 }
 
 NdArray::ConstIter NdArray::ConstIter::operator+(int i) const {
-    return {parent, p + i};
+    return { p + i};
 }
 
 NdArray::ConstIter NdArray::ConstIter::operator-(int i) const {
-    return {parent, p - i};
+    return { p - i};
 }
 
 NdArray::ConstIter& NdArray::ConstIter::operator+=(int i) {
@@ -2004,11 +1994,11 @@ size_t NdArray::ndim() const {
 }
 
 NdArray::Iter NdArray::data() {
-    return Iter(*this);
+    return begin();
 }
 
 NdArray::ConstIter NdArray::data() const {
-    return ConstIter(*this);
+    return begin();
 }
 
 void NdArray::fill(float v) {
@@ -2031,19 +2021,19 @@ NdArray NdArray::copy() const {
 
 // ----------------------------- Begin/End Methods -----------------------------
 NdArray::Iter NdArray::begin() {
-    return Iter(*this);
+    return Iter(m_sub->v.get());
 }
 
 NdArray::Iter NdArray::end() {
-    return Iter(*this, m_sub->v.get() + m_sub->size);
+    return Iter(m_sub->v.get() + m_sub->size);
 }
 
 NdArray::ConstIter NdArray::begin() const {
-    return ConstIter(*this);
+    return ConstIter(m_sub->v.get());
 }
 
 NdArray::ConstIter NdArray::end() const {
-    return ConstIter(*this, m_sub->v.get() + m_sub->size);
+    return ConstIter(m_sub->v.get() + m_sub->size);
 }
 
 // ------------------------------- Cast Operator -------------------------------
