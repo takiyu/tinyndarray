@@ -264,6 +264,15 @@ Functions which takes two arguments support broadcast.
 | ```np.max(a, axis=0)```                                  | ```Max(a, {0})```                                        |
 | ```np.mean(a, axis=0)```                                 | ```Mean(a, {0})```                                       |
 
+### Logistic Functions
+
+| **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
+|:--------------------------------------------------------:|:--------------------------------------------------------:|
+| ```np.all(a)```                                          | ```All(a, {0})```                                        |
+| ```np.all(a, axis=0)```                                  | ```All(a, {0})```                                        |
+| ```np.any(a)```                                          | ```Any(a, {0})```                                        |
+| ```np.any(a, axis=0)```                                  | ```Any(a, {0})```                                        |
+
 ### Axis Method
 
 | **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
