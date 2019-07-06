@@ -759,6 +759,22 @@ TEST_CASE("NdArray") {
         CheckNdArray(Any(m1, {1}), "[1, 0]");
     }
 
+    SECTION("Where") {
+        auto m1 = 2.f < NdArray::Arange(6.f).reshape(2, 3);
+        CheckNdArray(Where(m1, NdArray::Ones(2, 1), NdArray::Arange(3)),
+                     "[[0, 1, 2],\n"
+                     " [1, 1, 1]]");
+        CheckNdArray(Where(m1, 1.f, NdArray::Arange(3)),
+                     "[[0, 1, 2],\n"
+                     " [1, 1, 1]]");
+        CheckNdArray(Where(m1, NdArray::Arange(3), 0.f),
+                     "[[0, 0, 0],\n"
+                     " [0, 1, 2]]");
+        CheckNdArray(Where(m1, 1.f, 0.f),
+                     "[[0, 0, 0],\n"
+                     " [1, 1, 1]]");
+    }
+
     // ------------------------------- Operator --------------------------------
     SECTION("Single +- operators") {
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);
@@ -1706,6 +1722,22 @@ TEST_CASE("NdArray") {
         CheckNdArrayInplace(
                 2.f, NdArray::Arange(3.f) - 1.f, "[2.03444, 1.5708, 1.10715]",
                 static_cast<NdArray (*)(float, NdArray&&)>(ArcTan2));
+    }
+
+    SECTION("Where (in-place)") {
+        auto m1 = NdArray::Arange(6.f).reshape(2, 3);
+        CheckNdArray(Where(2.f < m1, NdArray::Ones(2, 1), NdArray::Arange(3)),
+                     "[[0, 1, 2],\n"
+                     " [1, 1, 1]]");
+        CheckNdArray(Where(2.f < m1, 1.f, NdArray::Arange(3)),
+                     "[[0, 1, 2],\n"
+                     " [1, 1, 1]]");
+        CheckNdArray(Where(2.f < m1, NdArray::Arange(3), 0.f),
+                     "[[0, 0, 0],\n"
+                     " [0, 1, 2]]");
+        CheckNdArray(Where(2.f < m1, 1.f, 0.f),
+                     "[[0, 0, 0],\n"
+                     " [1, 1, 1]]");
     }
 
     SECTION("Function Inverse (in-place)") {

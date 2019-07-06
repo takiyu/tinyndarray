@@ -389,6 +389,10 @@ bool All(const NdArray& x);
 bool Any(const NdArray& x);
 NdArray All(const NdArray& x, const Axis& axes);
 NdArray Any(const NdArray& x, const Axis& axes);
+NdArray Where(const NdArray& cond, const NdArray& x, const NdArray& y);
+NdArray Where(const NdArray& cond, const NdArray& x, float y);
+NdArray Where(const NdArray& cond, float x, const NdArray& y);
+NdArray Where(const NdArray& cond, float x, float y);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -473,6 +477,11 @@ NdArray ArcTan2(const NdArray& y, NdArray&& x);
 NdArray ArcTan2(NdArray&& y, const NdArray& x);
 NdArray ArcTan2(NdArray&& y, float x);
 NdArray ArcTan2(float y, NdArray&& x);
+// Logistic functions
+NdArray Where(NdArray&& cond, const NdArray& x, const NdArray& y);
+NdArray Where(NdArray&& cond, const NdArray& x, float y);
+NdArray Where(NdArray&& cond, float x, const NdArray& y);
+NdArray Where(NdArray&& cond, float x, float y);
 // Inverse
 NdArray Inv(NdArray&& x);
 
@@ -1069,6 +1078,64 @@ template <typename F>
 inline NdArray ApplyDualOpInplace(float lhs, NdArray&& rhs, F op) {
     // Swap left and right
     return ApplyDualOpInplace(std::move(rhs), lhs, ReverseOp(op));
+}
+
+// ----------------------- Utilities for NdArray (Where) -----------------------
+static float WhereOpLeft(const float& c, const float& x) {
+    if (c != static_cast<float>(false)) {
+        return x;  // True
+    }
+    return c;
+}
+
+static float WhereOpRight(const float& c, const float& y) {
+    if (c == static_cast<float>(false)) {
+        return y;  // False
+    }
+    return c;
+}
+
+static NdArray ApplyWhereOp(const NdArray& cond, const NdArray& x,
+                            const NdArray& y) {
+    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+}
+
+static NdArray ApplyWhereOp(const NdArray& cond, const NdArray& x, float y) {
+    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+}
+
+static NdArray ApplyWhereOp(const NdArray& cond, float x, const NdArray& y) {
+    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+}
+
+static NdArray ApplyWhereOp(const NdArray& cond, float x, float y) {
+    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+}
+
+// ----------------------- Utilities for NdArray (Where) -----------------------
+static NdArray ApplyWhereOpInplace(NdArray&& cond, const NdArray& x,
+                                   const NdArray& y) {
+    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+}
+
+static NdArray ApplyWhereOpInplace(NdArray&& cond, const NdArray& x, float y) {
+    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+}
+
+static NdArray ApplyWhereOpInplace(NdArray&& cond, float x, const NdArray& y) {
+    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+}
+
+static NdArray ApplyWhereOpInplace(NdArray&& cond, float x, float y) {
+    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
+    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
 }
 
 // ------------------- Utilities for NdArray (Axis reduction) ------------------
@@ -3052,6 +3119,22 @@ NdArray Any(const NdArray& x, const Axis& axes) {
     });
 }
 
+NdArray Where(const NdArray& cond, const NdArray& x, const NdArray& y) {
+    return ApplyWhereOp(cond, x, y);
+}
+
+NdArray Where(const NdArray& cond, const NdArray& x, float y) {
+    return ApplyWhereOp(cond, x, y);
+}
+
+NdArray Where(const NdArray& cond, float x, const NdArray& y) {
+    return ApplyWhereOp(cond, x, y);
+}
+
+NdArray Where(const NdArray& cond, float x, float y) {
+    return ApplyWhereOp(cond, x, y);
+}
+
 // Inverse
 NdArray Inv(const NdArray& x) {
     return InvertNdArray(x);
@@ -3385,6 +3468,22 @@ NdArray ArcTan2(NdArray&& y, float x) {
 NdArray ArcTan2(float y, NdArray&& x) {
     return ApplyDualOpInplace(y, std::move(x),
                               static_cast<float (*)(float, float)>(std::atan2));
+}
+
+NdArray Where(NdArray&& cond, const NdArray& x, const NdArray& y) {
+    return ApplyWhereOpInplace(std::move(cond), x, y);
+}
+
+NdArray Where(NdArray&& cond, const NdArray& x, float y) {
+    return ApplyWhereOpInplace(std::move(cond), x, y);
+}
+
+NdArray Where(NdArray&& cond, float x, const NdArray& y) {
+    return ApplyWhereOpInplace(std::move(cond), x, y);
+}
+
+NdArray Where(NdArray&& cond, float x, float y) {
+    return ApplyWhereOpInplace(std::move(cond), x, y);
 }
 
 // Inverse

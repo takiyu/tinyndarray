@@ -272,6 +272,7 @@ Functions which takes two arguments support broadcast.
 | ```np.all(a, axis=0)```                                  | ```All(a, {0})```                                        |
 | ```np.any(a)```                                          | ```Any(a, {0})```                                        |
 | ```np.any(a, axis=0)```                                  | ```Any(a, {0})```                                        |
+| ```np.where(condition, x, y)```                          | ```Where(condition, x, y)```                             |
 
 ### Axis Method
 
