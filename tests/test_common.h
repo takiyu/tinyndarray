@@ -725,6 +725,40 @@ TEST_CASE("NdArray") {
         CheckNdArray(m2.mean({2, 1}), "[-3.5, 2.5]");
     }
 
+    // --------------------------- Logistic operation --------------------------
+    SECTION("All (no axis)") {
+        NdArray m0;
+        CHECK(All(m0));
+        auto m1 = NdArray::Arange(6.f).reshape(2, 3);
+        auto m2 = m1.copy();
+        CHECK(All(m1 == m2));
+        m2(1, 2) = -1.f;
+        CHECK(!All(m1 == m2));
+    }
+
+    SECTION("Any (no axis)") {
+        NdArray m0;
+        CHECK(!Any(m0));
+        auto m1 = NdArray::Arange(6.f).reshape(2, 3);
+        auto m2 = m1.copy() + 1.f;
+        CHECK(!Any(m1 == m2));
+        m2(0, 0) = 0.f;
+        CHECK(Any(m1 == m2));
+    }
+
+    SECTION("All (with axis)") {
+        auto m1 = NdArray::Arange(6.f).reshape(2, 3);
+        CheckNdArray(All(m1, {0}), "[0, 1, 1]");
+        CheckNdArray(All(m1, {1}), "[0, 1]");
+    }
+
+    SECTION("Any (with axis)") {
+        auto m1 = NdArray::Zeros(2, 3);
+        m1(0, 0) = -1.f;
+        CheckNdArray(Any(m1, {0}), "[1, 0, 0]");
+        CheckNdArray(Any(m1, {1}), "[1, 0]");
+    }
+
     // ------------------------------- Operator --------------------------------
     SECTION("Single +- operators") {
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);

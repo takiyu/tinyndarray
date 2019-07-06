@@ -384,6 +384,11 @@ NdArray Sum(const NdArray& x, const Axis& axes = {});
 NdArray Min(const NdArray& x, const Axis& axes = {});
 NdArray Max(const NdArray& x, const Axis& axes = {});
 NdArray Mean(const NdArray& x, const Axis& axes = {});
+// Logistic functions
+bool All(const NdArray& x);
+bool Any(const NdArray& x);
+NdArray All(const NdArray& x, const Axis& axes);
+NdArray Any(const NdArray& x, const Axis& axes);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -1755,8 +1760,7 @@ NdArray::Iter::operator NdArray::ConstIter() const {
 }
 
 // ------------------------------ Const Iterator -------------------------------
-NdArray::ConstIter::ConstIter(const float* p_)
-    : p(p_) {}
+NdArray::ConstIter::ConstIter(const float* p_) : p(p_) {}
 
 const float& NdArray::ConstIter::operator*() const {
     return *p;
@@ -1789,11 +1793,11 @@ NdArray::ConstIter NdArray::ConstIter::operator--(int) {
 }
 
 NdArray::ConstIter NdArray::ConstIter::operator+(int i) const {
-    return { p + i};
+    return {p + i};
 }
 
 NdArray::ConstIter NdArray::ConstIter::operator-(int i) const {
-    return { p - i};
+    return {p - i};
 }
 
 NdArray::ConstIter& NdArray::ConstIter::operator+=(int i) {
@@ -3038,6 +3042,28 @@ NdArray Mean(const NdArray& x, const Axis& axes) {
     }
     auto&& sum = Sum(x, axes);
     return sum / static_cast<float>(x.size() / sum.size());
+}
+
+bool All(const NdArray& x) {
+    // Cast to bool
+    return static_cast<float>(All(x, {})) == static_cast<float>(true);
+}
+
+bool Any(const NdArray& x) {
+    // Cast to bool
+    return static_cast<float>(Any(x, {})) == static_cast<float>(true);
+}
+
+NdArray All(const NdArray& x, const Axis& axes) {
+    return ReduceAxis(x, axes, 1.f, [](float a, float b) {
+        return static_cast<bool>(a) && static_cast<bool>(b);
+    });
+}
+
+NdArray Any(const NdArray& x, const Axis& axes) {
+    return ReduceAxis(x, axes, 0.f, [](float a, float b) {
+        return static_cast<bool>(a) || static_cast<bool>(b);
+    });
 }
 
 // Inverse
