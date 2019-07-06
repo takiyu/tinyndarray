@@ -825,8 +825,8 @@ static Shape PadShape(const Shape& shape, size_t size) {
     return ret_shape;
 }
 
-static size_t ReduceShapes(Shape& ret_shape, Shape& l_shape, Shape& r_shape,
-                           const size_t depth_offset) {
+static size_t ReduceShapesBroadcast(Shape& ret_shape, Shape& l_shape,
+                                    Shape& r_shape, const size_t depth_offset) {
     // Require `ret_shape.size() == l_shape.size() == r_shape.size()`
 
     // Remove meaningless dimensions.
@@ -926,7 +926,7 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
 
     // Pre-compute reduced shapes
     const size_t n_depth =
-            ReduceShapes(ret_shape, l_shape, r_shape, depth_offset);
+            ReduceShapesBroadcast(ret_shape, l_shape, r_shape, depth_offset);
 
     // Pre-compute child sizes
     const std::vector<int>& ret_child_sizes = ComputeChildSizes(ret_shape);
@@ -1126,8 +1126,8 @@ static int ComputeReducedIndex(int src_idx,
     return ret_idx;
 }
 
-static void ReduceShapes(Shape& ret_shape, Shape& src_shape,
-                         Axis& sorted_axes) {
+static void ReduceShapesReduction(Shape& ret_shape, Shape& src_shape,
+                                  Axis& sorted_axes) {
     // Require `ret_shape.size() == src_shape.size()`
 
     // Remove meaningless dimensions.
@@ -1234,7 +1234,7 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
         std::sort(sorted_axes.begin(), sorted_axes.end());
 
         // Remove extra dimensions of shapes
-        ReduceShapes(ret_shape_pad, src_shape, sorted_axes);
+        ReduceShapesReduction(ret_shape_pad, src_shape, sorted_axes);
 
         // Pre-compute child sizes
         const auto& ret_child_sizes = ComputeChildSizes(ret_shape_pad);

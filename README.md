@@ -258,7 +258,7 @@ Functions which takes two arguments support broadcast.
 | ```np.sum(a)```                                          | ```Sum(a)```                                             |
 | ```np.sum(a, axis=0)```                                  | ```Sum(a, {0})``` or                                     |
 |                                                          | ```Sum(a, Axis{0})```                                    |
-| ```np.sum(a, axis=(0, 2))```                             | ```Sum(a, {0, 2})``` or                              |
+| ```np.sum(a, axis=(0, 2))```                             | ```Sum(a, {0, 2})``` or                                  |
 |                                                          | ```Sum(a, Axis{0, 2})```                                 |
 | ```np.min(a, axis=0)```                                  | ```Min(a, {0})```                                        |
 | ```np.max(a, axis=0)```                                  | ```Max(a, {0})```                                        |
