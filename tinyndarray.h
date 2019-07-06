@@ -2010,17 +2010,12 @@ void NdArray::fill(float v) {
 }
 
 NdArray NdArray::copy() const {
-    // Create new substance
+    // Create new array with new substance
     auto sub = std::make_shared<Substance>(m_sub->size, m_sub->shape);
+    NdArray ret(sub);
     // Copy array data
-    float* dst_data = sub->v.get();
-    const float* src_data = m_sub->v.get();
-    const size_t size = m_sub->size;
-    for (size_t i = 0; i < size; i++) {
-        *(dst_data++) = *(src_data++);
-    }
-    // Create new array
-    return NdArray(sub);
+    ApplyOpSimple(ret, *this, [](const float& x) { return x; });
+    return ret;
 }
 
 // ----------------------------- Begin/End Methods -----------------------------
