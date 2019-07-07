@@ -429,7 +429,8 @@ tinyndarray::NdArray::SetNumWorkers(4);
 ## TODO
 
 * [ ] Replace axis reduction function with more effective algorithm.
+* [ ] Improve inverse function with LU decomposition.
 * [ ] Implement reference slice which dose not effect the current performance.
 * [ ] Introduce SIMD instructions.
 
-Everything in the upper list are difficult challenge. If you have any ideas, please let me know.
+Everything in the upper list are difficult challenges. If you have any ideas, please let me know.
