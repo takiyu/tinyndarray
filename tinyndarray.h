@@ -507,7 +507,8 @@ inline auto ReverseOp(F op) {
     return [op](float a, float b) { return op(b, a); };  // Swap left and right
 }
 
-void GetPrallelParams(int size, int& n_workers, int& n_batch, int& batch_size) {
+static void GetParallelParams(int size, int& n_workers, int& n_batch,
+                              int& batch_size) {
     // Fetch the number of workers
     n_workers = NdArray::GetNumWorkers();
     if (n_workers <= 0) {
@@ -523,7 +524,7 @@ template <typename F>
 void RunParallel(int size, F op) {
     // Decide parallelization parameters
     int n_workers = -1, n_batch = -1, batch_size = -1;
-    GetPrallelParams(size, n_workers, n_batch, batch_size);
+    GetParallelParams(size, n_workers, n_batch, batch_size);
 
     if (n_workers <= 1) {
         // Single execution
@@ -536,7 +537,7 @@ void RunParallel(int size, F op) {
         std::atomic<int> next_batch(0);
         std::vector<std::thread> workers(static_cast<size_t>(n_workers));
         for (auto&& worker : workers) {
-            worker = std::thread([=, &next_batch]() {
+            worker = std::thread([ =, &next_batch ]() noexcept {
                 int batch_cnt = 0;
                 while ((batch_cnt = next_batch++) < n_batch) {
                     for (int i = 0; i < batch_size; i++) {
@@ -560,7 +561,7 @@ template <typename F, typename R>
 float RunParallelWithReduce(int size, F op, R reduce, float init_v) {
     // Decide parallelization parameters
     int n_workers = -1, n_batch = -1, batch_size = -1;
-    GetPrallelParams(size, n_workers, n_batch, batch_size);
+    GetParallelParams(size, n_workers, n_batch, batch_size);
 
     if (n_workers <= 1) {
         // Single execution
@@ -574,9 +575,9 @@ float RunParallelWithReduce(int size, F op, R reduce, float init_v) {
         // Parallel execution
         std::atomic<int> next_batch(0);
         std::vector<std::thread> workers(static_cast<size_t>(n_workers));
-        std::vector<float> reduced_results(workers.size());
+        std::vector<float> results(workers.size());
         for (size_t t = 0; t < workers.size(); t++) {
-            workers[t] = std::thread([=, &next_batch, &reduced_results]() {
+            workers[t] = std::thread([ =, &next_batch, &results ]() noexcept {
                 int batch_cnt = 0;
                 float v = init_v;
                 while ((batch_cnt = next_batch++) < n_batch) {
@@ -589,14 +590,13 @@ float RunParallelWithReduce(int size, F op, R reduce, float init_v) {
                         v = reduce(v, op(idx));
                     }
                 }
-                reduced_results[t] = v;
+                results[t] = v;
             });
         }
         for (auto&& worker : workers) {
             worker.join();
         }
-        return std::accumulate(reduced_results.begin(), reduced_results.end(),
-                               init_v, reduce);
+        return std::accumulate(results.begin(), results.end(), init_v, reduce);
     }
 }
 
@@ -869,7 +869,7 @@ static size_t ReduceShapesBroadcast(Shape& ret_shape, Shape& l_shape,
     return n_depth;
 }
 
-template <std::size_t ret_step, typename F>
+template <int ret_step, typename F>
 void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
                           const NdArray::ConstIter& l_data,
                           const NdArray::ConstIter& r_data,
@@ -912,7 +912,7 @@ void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
     }
 }
 
-template <std::size_t ret_step, typename F>
+template <int ret_step, typename F>
 void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
                       const size_t depth_offset, F op) {
     Shape ret_shape = ret.shape();
@@ -1422,10 +1422,10 @@ static NdArray DotNdArray1d(const NdArray& lhs, const NdArray& rhs) {
     return {sum};
 }
 
-void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
-                                const NdArray::ConstIter& l_data,
-                                const NdArray::ConstIter& r_data,
-                                const int n_col, const int n_contract) {
+static void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
+                                       const NdArray::ConstIter& l_data,
+                                       const NdArray::ConstIter& r_data,
+                                       const int n_col, const int n_contract) {
     // Zero initialization
     FillN(ret_data, n_col, 0.f);
     // Col-major dot product
@@ -1438,10 +1438,10 @@ void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
     }
 }
 
-void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
-                                const NdArray::ConstIter& l_data,
-                                const NdArray::ConstIter& r_data,
-                                const int n_col, const int n_contract) {
+static void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
+                                       const NdArray::ConstIter& l_data,
+                                       const NdArray::ConstIter& r_data,
+                                       const int n_col, const int n_contract) {
     // Row-major dot product
     for (int col_cnt = 0; col_cnt < n_col; col_cnt++) {
         float sum = 0.f;
@@ -1623,7 +1623,7 @@ static void CrossNdArray1d1dShape22(const NdArray::Iter& ret_data,
     ret_data[0] = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-template <std::size_t ret_step, typename F>
+template <int ret_step, typename F>
 NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, F op) {
     const Shape& l_shape = lhs.shape();
     const Shape& r_shape = rhs.shape();
@@ -1643,9 +1643,8 @@ static int CheckInversable(const Shape& shape) {
     }
     const int size = shape.back();
     if (size != shape.end()[-2]) {
-        throw std::runtime_error(
-                "For matrix inverse, last 2 dimensions of the"
-                " array must be square");
+        throw std::runtime_error("For matrix inverse, last 2 dimensions of the"
+                                 " array must be square");
     }
     return size;
 }
@@ -2334,9 +2333,8 @@ NdArray NdArray::cross(const NdArray& other) const {
             return ret.reshape(Shape{ret_shape.begin(), ret_shape.end() - 1});
         }
     }
-    throw std::runtime_error(
-            "incompatible dimensions for cross product"
-            " (dimension must be 2 or 3)");
+    throw std::runtime_error("incompatible dimensions for cross product"
+                             " (dimension must be 2 or 3)");
 }
 
 // -------------------------------- Axis Method --------------------------------
