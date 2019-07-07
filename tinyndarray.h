@@ -1085,57 +1085,57 @@ static float WhereOpLeft(const float& c, const float& x) {
     if (c != static_cast<float>(false)) {
         return x;  // True
     }
-    return c;
+    return 0.f;
 }
 
 static float WhereOpRight(const float& c, const float& y) {
     if (c == static_cast<float>(false)) {
         return y;  // False
     }
-    return c;
+    return 0.f;
 }
 
 static NdArray ApplyWhereOp(const NdArray& cond, const NdArray& x,
                             const NdArray& y) {
-    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(cond, y, WhereOpRight) + tmp;
 }
 
 static NdArray ApplyWhereOp(const NdArray& cond, const NdArray& x, float y) {
-    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(cond, y, WhereOpRight) + tmp;
 }
 
 static NdArray ApplyWhereOp(const NdArray& cond, float x, const NdArray& y) {
-    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(cond, y, WhereOpRight) + tmp;
 }
 
 static NdArray ApplyWhereOp(const NdArray& cond, float x, float y) {
-    NdArray tmp = ApplyDualOp(cond, x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(cond, y, WhereOpRight) + tmp;
 }
 
 // ----------------------- Utilities for NdArray (Where) -----------------------
 static NdArray ApplyWhereOpInplace(NdArray&& cond, const NdArray& x,
                                    const NdArray& y) {
-    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(std::move(cond), y, WhereOpRight) + tmp;
 }
 
 static NdArray ApplyWhereOpInplace(NdArray&& cond, const NdArray& x, float y) {
-    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(std::move(cond), y, WhereOpRight) + tmp;
 }
 
 static NdArray ApplyWhereOpInplace(NdArray&& cond, float x, const NdArray& y) {
-    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(std::move(cond), y, WhereOpRight) + tmp;
 }
 
 static NdArray ApplyWhereOpInplace(NdArray&& cond, float x, float y) {
-    NdArray tmp = ApplyDualOp(std::move(cond), x, WhereOpLeft);
-    return ApplyDualOpInplace(std::move(tmp), y, WhereOpRight);
+    auto tmp = ApplyDualOp(cond, x, WhereOpLeft);
+    return ApplyDualOp(std::move(cond), y, WhereOpRight) + tmp;
 }
 
 // ------------------- Utilities for NdArray (Axis reduction) ------------------

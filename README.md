@@ -10,7 +10,33 @@ I look forward to your pull-request.
 
 ## Sample Code
 <pre lang="cpp">
-   // TODO
+#define TINYNDARRAY_IMPLEMENTATION
+#include "tinyndarray.h"
+
+using tinyndarray::NdArray;
+
+int main(int argc, char const* argv[]) {
+    auto m1 = NdArray::Arange(12).reshape(2, 2, 3) - 2.f;
+    auto m2 = NdArray::Ones(3, 1) * 10.f;
+    auto m12 = m1.dot(m2);
+    std::cout << m12 << std::endl;
+
+    NdArray m3 = {{{-0.4f, 0.3f}, {-0.2f, 0.1f}},
+                  {{-0.1f, 0.2f}, {-0.3f, 0.4f}}};
+    m3 = Sin(std::move(m3));
+    std::cout << m3 << std::endl;
+
+    auto sum_abs = Abs(m3).sum();
+    std::cout << sum_abs << std::endl;
+
+    auto m4 = Where(0.f < m3, -100.f, 100.f);
+    bool all_m4 = All(m4);
+    bool any_m4 = Any(m4);
+    std::cout << m4 << std::endl;
+    std::cout << all_m4 << " " << any_m4 << std::endl;
+
+    return 0;
+}
 </pre>
 
 ## Quick Guide
