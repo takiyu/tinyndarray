@@ -1,6 +1,7 @@
 #ifndef TINYNDARRAY_H_ONCE
 #define TINYNDARRAY_H_ONCE
 
+#ifndef TINYNDARRAY_NO_INCLUDE
 #include <algorithm>
 #include <atomic>
 #include <cassert>
@@ -15,6 +16,7 @@
 #include <sstream>
 #include <thread>
 #include <vector>
+#endif
 
 namespace tinyndarray {
 
