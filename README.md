@@ -425,3 +425,11 @@ tinyndarray::NdArray::SetNumWorkers(1);
 // Use 4 cores
 tinyndarray::NdArray::SetNumWorkers(4);
 ```
+
+## TODO
+
+* [ ] Replace axis reduction function with more effective algorithm.
+* [ ] Implement reference slice which dose not effect the current performance.
+* [ ] Introduce SIMD instructions.
+
+Everything in the upper list are difficult challenge. If you have any ideas, please let me know.
