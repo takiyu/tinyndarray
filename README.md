@@ -417,14 +417,14 @@ In default, most of all operations run in parallel by threads.
 
 When changing the number of workers, please set via `NdArray::SetNumWorkers()`.
 
-```
+<pre lang="cpp">
 // Default setting. Use all of cores.
 tinyndarray::NdArray::SetNumWorkers(-1);
 // Set no parallel.
 tinyndarray::NdArray::SetNumWorkers(1);
 // Use 4 cores
 tinyndarray::NdArray::SetNumWorkers(4);
-```
+</pre>
 
 ## TODO
 
