@@ -64,11 +64,7 @@ static void PrintTimeResult(const std::string& tag,
 
 static void CheckSameNdArray(const NdArray& m1, const NdArray& m2) {
     CHECK(m1.shape() == m2.shape());
-    auto&& data1 = m1.data();
-    auto&& data2 = m2.data();
-    for (int i = 0; i < static_cast<int>(m1.size()); i++) {
-        CHECK(data1[i] == Approx(data2[i]));
-    }
+    CHECK(All(m1 == m2));
 }
 
 template <typename F, typename... OP>
