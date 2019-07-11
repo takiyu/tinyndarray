@@ -495,6 +495,12 @@ NdArray Inv(NdArray&& x);
 #ifdef TINYNDARRAY_IMPLEMENTATION
 
 // -----------------------------------------------------------------------------
+// ---------------------------- NdArray Parameters -----------------------------
+// -----------------------------------------------------------------------------
+
+constexpr int DOT_CACHE_SCALE = 10;  // It depends on using situation and CPU
+
+// -----------------------------------------------------------------------------
 // --------------------------- Utilities for NdArray ---------------------------
 // -----------------------------------------------------------------------------
 template <typename T>
@@ -1426,8 +1432,8 @@ static void DotNdArray1d2dImplColMajor(const NdArray::Iter& ret_data,
                                        const NdArray::ConstIter& l_data,
                                        const NdArray::ConstIter& r_data,
                                        const int n_col, const int n_contract) {
-    // Zero initialization
-    FillN(ret_data, n_col, 0.f);
+    // Zero initialization (no parallel)
+    std::fill_n(ret_data, n_col, 0.f);
     // Col-major dot product
     int r_idx = 0;
     for (int l_idx = 0; l_idx < n_contract; l_idx++) {
@@ -1454,51 +1460,27 @@ static void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
     }
 }
 
-static auto SelectDot1d2dOp(const size_t l_size, const size_t r_size) {
-    // Switch row-major and col-major
-    if (l_size < r_size) {
-        return DotNdArray1d2dImplColMajor;
-    } else {
-        return DotNdArray1d2dImplRowMajor;
-    }
-}
+static auto SelectDot1d2dOp(const Shape& l_shape, const Shape& r_shape) {
 
-template <typename F1d2d>
-void DotNdArray2dImpl(const NdArray::Iter& ret_data,
-                      const NdArray::ConstIter& l_data,
-                      const NdArray::ConstIter& r_data, const int n_row,
-                      const int n_col, const int n_contract, F1d2d op_1d2d) {
-#if 1  // Run in parallel
-    RunParallel(n_row, [&](int row_cnt) {
-        const int ret_idx = n_col * row_cnt;
-        const int l_idx = n_contract * row_cnt;
-        op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data, n_col, n_contract);
-    });
-#else  // Run sequentially
-    int ret_idx = 0;
-    int l_idx = 0;
-    for (int row_cnt = 0; row_cnt < n_row; row_cnt++) {
-        op_1d2d(ret_data + ret_idx, l_data + l_idx, r_data, n_col, n_contract);
-        l_idx += n_contract;
-        ret_idx += n_col;
-    }
+    // Debug macros
+#if defined(TINYNDARRAY_FORCE_DOT_COLMAJOR)
+    (void)l_shape;
+    (void)r_shape;
+    return DotNdArray1d2dImplColMajor;  // Col
+#elif defined(TINYNDARRAY_FORCE_DOT_RAWMAJOR)
+    (void)l_shape;
+    (void)r_shape;
+    return DotNdArray1d2dImplRowMajor;  // Row
 #endif
-}
 
-static NdArray DotNdArray2d(const NdArray& lhs, const NdArray& rhs) {
-    const Shape& l_shape = lhs.shape();  // 2 == size
-    const Shape& r_shape = rhs.shape();  // 2 == size
-    if (l_shape[1] != r_shape[0]) {
-        throw std::runtime_error("Invalid size for inner product of 2D");
+    // Decide which major is better
+    const int left = l_shape.end()[-1];
+    const int right = r_shape.end()[-2] * r_shape.end()[-1];
+    if (left * DOT_CACHE_SCALE < right) {
+        return DotNdArray1d2dImplColMajor;  // Col
+    } else {
+        return DotNdArray1d2dImplRowMajor;  // Row
     }
-    // Inner product of 2D matrix
-    const int& n_row = l_shape[0];
-    const int& n_col = r_shape[1];
-    const int& n_contract = l_shape[1];  // == r_shape[0]
-    NdArray ret({n_row, n_col});
-    DotNdArray2dImpl(ret.data(), lhs.data(), rhs.data(), n_row, n_col,
-                     n_contract, SelectDot1d2dOp(lhs.size(), lhs.size()));
-    return ret;
 }
 
 template <typename F1d2d>
@@ -1583,7 +1565,7 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
 
     // Dot product
     DotNdArrayNdMdImpl(ret.data(), lhs.data(), rhs.data(), n_l, n_r, ret_step,
-                       l_step, r_step, SelectDot1d2dOp(lhs.size(), rhs.size()));
+                       l_step, r_step, SelectDot1d2dOp(l_shape, r_shape));
 
     return ret;
 }
@@ -2264,15 +2246,6 @@ NdArray NdArray::dot(const NdArray& other) const {
     } else if (l_shape.size() == 1 && r_shape.size() == 1) {
         // Inner product of vector (1D, 1D)
         return DotNdArray1d(lhs, rhs);
-    } else if (l_shape.size() == 2 && r_shape.size() == 2) {
-        // Inner product of 2D matrix (2D, 2D)
-        // Special version of NDMD. This is for faster calculation.
-        return DotNdArray2d(lhs, rhs);
-    } else if (l_shape.size() == 2 && r_shape.size() == 1) {
-        // Inner product of 2D matrix and vector (2D, 1D)
-        // Special version of ND1D. This is for faster calculation.
-        const int n_elem = l_shape[0];
-        return DotNdArray2d(lhs, rhs.reshape(r_shape[0], 1)).reshape(n_elem);
     } else if (r_shape.size() == 1) {
         // Broadcast right 1D array
         const Shape shape(l_shape.begin(), l_shape.end() - 1);

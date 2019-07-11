@@ -106,3 +106,9 @@ add_executable(tinyndarray_tests_time_consumption
     ${CMAKE_CURRENT_SOURCE_DIR}/test_time_consumption.cpp
 )
 setup_target(tinyndarray_tests_time_consumption "" "${CMAKE_THREAD_LIBS_INIT}")
+
+# Executable file for tests (dot majoring test)
+add_executable(tinyndarray_tests_dot_major
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_dot_major.cpp
+)
+setup_target(tinyndarray_tests_dot_major "" "${CMAKE_THREAD_LIBS_INIT}")

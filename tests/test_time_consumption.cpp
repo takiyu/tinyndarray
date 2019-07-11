@@ -4,6 +4,8 @@
 #define TINYNDARRAY_IMPLEMENTATION
 #include "../tinyndarray.h"
 
+#include "timer.h"  // g_timer
+
 #include <chrono>
 #include <functional>
 
@@ -13,30 +15,6 @@ constexpr int W = 20000;
 constexpr int H = 20000;
 constexpr int WH = W * H;
 constexpr int N_WORKERS = -1;
-
-class Timer {
-public:
-    Timer() {}
-
-    void start() {
-        m_start = std::chrono::system_clock::now();
-    }
-
-    void end() {
-        m_end = std::chrono::system_clock::now();
-    }
-
-    float getElapsedMsec() const {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(m_end -
-                                                                     m_start)
-                .count();
-    }
-
-private:
-    std::chrono::system_clock::time_point m_start, m_end;
-};
-
-static Timer g_timer;
 
 static auto MeasureOpTime(std::function<NdArray()> op) {
     g_timer.start();
