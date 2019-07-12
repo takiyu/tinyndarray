@@ -20,6 +20,11 @@
 
 namespace tinyndarray {
 
+// #############################################################################
+// ############################ Begin of Declaration ###########################
+// #############################################################################
+#ifndef TINYNDARRAY_NO_DECLARATION
+
 class NdArray;
 using InitShape = std::initializer_list<int>;
 using Shape = std::vector<int>;
@@ -145,6 +150,11 @@ public:
     NdArray min(const Axis& axes = {}) const;
     NdArray max(const Axis& axes = {}) const;
     NdArray mean(const Axis& axes = {}) const;
+
+    // Parameters
+    static constexpr int DOT_CACHE_SCALE = 10;  // depends on situation and CPU
+    static constexpr int DEFAULT_N_WORKERS = -1;
+    static constexpr int DEFAULT_BATCH_SCALE = 4;
 
     class Substance;
 
@@ -487,18 +497,16 @@ NdArray Where(NdArray&& cond, float x, float y);
 // Inverse
 NdArray Inv(NdArray&& x);
 
-// *****************************************************************************
-// *****************************************************************************
-// **************************** Begin of Definitions ***************************
-// *****************************************************************************
-// *****************************************************************************
+#endif  // TINYNDARRAY_NO_DECLARATION
+// #############################################################################
+// ############################# End of Declaration ############################
+// #############################################################################
+
+
+// #############################################################################
+// ############################ Begin of Definitions ###########################
+// #############################################################################
 #ifdef TINYNDARRAY_IMPLEMENTATION
-
-// -----------------------------------------------------------------------------
-// ---------------------------- NdArray Parameters -----------------------------
-// -----------------------------------------------------------------------------
-
-constexpr int DOT_CACHE_SCALE = 10;  // It depends on using situation and CPU
 
 // -----------------------------------------------------------------------------
 // --------------------------- Utilities for NdArray ---------------------------
@@ -1476,7 +1484,7 @@ static auto SelectDot1d2dOp(const Shape& l_shape, const Shape& r_shape) {
     // Decide which major is better
     const int left = l_shape.end()[-1];
     const int right = r_shape.end()[-2] * r_shape.end()[-1];
-    if (left * DOT_CACHE_SCALE < right) {
+    if (left * NdArray::DOT_CACHE_SCALE < right) {
         return DotNdArray1d2dImplColMajor;  // Col
     } else {
         return DotNdArray1d2dImplRowMajor;  // Row
@@ -1870,8 +1878,8 @@ bool NdArray::ConstIter::operator!=(const ConstIter& other) const {
 // ------------------------------- Static Member -------------------------------
 std::random_device NdArray::s_rand_seed;
 std::mt19937 NdArray::s_rand_engine(s_rand_seed());
-int NdArray::s_n_workers = -1;
-int NdArray::s_batch_scale = 4;
+int NdArray::s_n_workers = NdArray::DEFAULT_N_WORKERS;
+int NdArray::s_batch_scale = NdArray::DEFAULT_BATCH_SCALE;
 
 // -------------------- Constructors with Float Initializers -------------------
 NdArray::NdArray(FloatList<0> init_list) : NdArray(CheckFListShape(init_list)) {
@@ -3465,6 +3473,9 @@ NdArray Inv(NdArray&& x) {
 }
 
 #endif  // TINYNDARRAY_IMPLEMENTATION
+// #############################################################################
+// ############################# End of Definition ############################
+// #############################################################################
 
 }  // namespace tinyndarray
 
