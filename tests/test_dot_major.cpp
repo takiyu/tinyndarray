@@ -72,12 +72,12 @@ float TestDotTimeOne(const Shape& l_shape, const Shape& r_shape) {
     }
 }
 
-std::ostream& SetFmt(std::ostream& os) {
+static std::ostream& SetFmt(std::ostream& os) {
     os << std::setprecision(3);
     return os;
 }
 
-void TestDotTime(const Shape& l_shape, const Shape& r_shape) {
+static void TestDotTime(const Shape& l_shape, const Shape& r_shape) {
     // Print header
     std::stringstream ss;
     ss << l_shape << " @ " << r_shape << ": ";
