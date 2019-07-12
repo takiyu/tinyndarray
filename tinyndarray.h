@@ -18,7 +18,9 @@
 #include <vector>
 #endif
 
+#ifndef TINYNDARRAY_NO_NAMESPACE
 namespace tinyndarray {
+#endif  // TINYNDARRAY_NO_NAMESPACE
 
 // #############################################################################
 // ############################ Begin of Declaration ###########################
@@ -501,7 +503,6 @@ NdArray Inv(NdArray&& x);
 // #############################################################################
 // ############################# End of Declaration ############################
 // #############################################################################
-
 
 // #############################################################################
 // ############################ Begin of Definitions ###########################
@@ -1469,7 +1470,6 @@ static void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
 }
 
 static auto SelectDot1d2dOp(const Shape& l_shape, const Shape& r_shape) {
-
     // Debug macros
 #if defined(TINYNDARRAY_FORCE_DOT_COLMAJOR)
     (void)l_shape;
@@ -3477,6 +3477,8 @@ NdArray Inv(NdArray&& x) {
 // ############################# End of Definition ############################
 // #############################################################################
 
+#ifndef TINYNDARRAY_NO_NAMESPACE
 }  // namespace tinyndarray
+#endif  // TINYNDARRAY_NO_NAMESPACE
 
 #endif /* end of include guard */

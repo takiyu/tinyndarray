@@ -90,16 +90,16 @@ void TestDotTime(const Shape& l_shape, const Shape& r_shape) {
 
     // Measure
     const float time_auto = TestDotTimeOne<NdArrayAuto>(l_shape, r_shape);
-    SetFmt(std::cout) << "a:" <<  time_auto << "ms" << ",  ";
+    SetFmt(std::cout) << "a:" << time_auto << "ms,  ";
     const float time_col = TestDotTimeOne<NdArrayCol>(l_shape, r_shape);
-    SetFmt(std::cout) << "c:" << time_col << "ms" << ",  ";
+    SetFmt(std::cout) << "c:" << time_col << "ms,  ";
     const float time_row = TestDotTimeOne<NdArrayRow>(l_shape, r_shape);
-    SetFmt(std::cout) << "r:" << time_row << "ms" << ",  ";
+    SetFmt(std::cout) << "r:" << time_row << "ms,  ";
 
     // Analyze
     const bool should_col = (time_col < time_row);
-    const bool used_col = (std::abs(time_col - time_auto) <
-                           std::abs(time_row - time_auto));
+    const bool used_col =
+            (std::abs(time_col - time_auto) < std::abs(time_row - time_auto));
     if (used_col) {
         std::cout << "(now: col) ";
     } else {
@@ -117,7 +117,6 @@ void TestDotTime(const Shape& l_shape, const Shape& r_shape) {
     }
     std::cout << std::endl;
 }
-
 
 int main(int argc, char const* argv[]) {
     (void)argc;
