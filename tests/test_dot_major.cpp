@@ -13,6 +13,8 @@
 #include <thread>
 #include <vector>
 
+#include <iomanip>
+
 #include "timer.h"  // g_timer
 
 #define TINYNDARRAY_IMPLEMENTATION
@@ -70,24 +72,29 @@ float TestDotTimeOne(const Shape& l_shape, const Shape& r_shape) {
     }
 }
 
+std::ostream& SetFmt(std::ostream& os) {
+    os << std::setprecision(3);
+    return os;
+}
+
 void TestDotTime(const Shape& l_shape, const Shape& r_shape) {
     // Print header
     std::stringstream ss;
     ss << l_shape << " @ " << r_shape << ": ";
     const std::string& head_str = ss.str();
     std::cout << head_str;
-    const int lack = 40 - static_cast<int>(head_str.size());
+    const int lack = 30 - static_cast<int>(head_str.size());
     for (int i = 0; i < lack; i++) {
         std::cout << " ";
     }
 
     // Measure
     const float time_auto = TestDotTimeOne<NdArrayAuto>(l_shape, r_shape);
-    std::cout << "a:" << time_auto << "ms" << ",  ";
+    SetFmt(std::cout) << "a:" <<  time_auto << "ms" << ",  ";
     const float time_col = TestDotTimeOne<NdArrayCol>(l_shape, r_shape);
-    std::cout << "c:" << time_col << "ms" << ",  ";
+    SetFmt(std::cout) << "c:" << time_col << "ms" << ",  ";
     const float time_row = TestDotTimeOne<NdArrayRow>(l_shape, r_shape);
-    std::cout << "r:" << time_row << "ms" << ",  ";
+    SetFmt(std::cout) << "r:" << time_row << "ms" << ",  ";
 
     // Analyze
     const bool should_col = (time_col < time_row);
