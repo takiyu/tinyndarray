@@ -725,6 +725,19 @@ TEST_CASE("NdArray") {
         CheckNdArray(m2.mean({2, 1}), "[-3.5, 2.5]");
     }
 
+    SECTION("Sum keepdims") {
+        NdArray m0;
+        auto m1 = NdArray::Arange(36.f).reshape(2, 3, 2, 3);
+        CheckNdArray(m1.sum({1, 2}, true),
+                     "[[[[45, 51, 57]]],\n"
+                     " [[[153, 159, 165]]]]");
+        CheckNdArray(m1.sum({1, 3}, true),
+                     "[[[[63],\n"
+                     "   [90]]],\n"
+                     " [[[225],\n"
+                     "   [252]]]]");
+    }
+
     // --------------------------- Logistic operation --------------------------
     SECTION("All (no axis)") {
         NdArray m0;

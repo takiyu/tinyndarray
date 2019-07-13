@@ -148,10 +148,10 @@ public:
     NdArray dot(float other) const;
     NdArray cross(const NdArray& other) const;
 
-    NdArray sum(const Axis& axes = {}) const;
-    NdArray min(const Axis& axes = {}) const;
-    NdArray max(const Axis& axes = {}) const;
-    NdArray mean(const Axis& axes = {}) const;
+    NdArray sum(const Axis& axes = {}, bool keepdims = false) const;
+    NdArray min(const Axis& axes = {}, bool keepdims = false) const;
+    NdArray max(const Axis& axes = {}, bool keepdims = false) const;
+    NdArray mean(const Axis& axes = {}, bool keepdims = false) const;
 
     // Parameters
     static constexpr int DOT_CACHE_SCALE = 10;  // depends on situation and CPU
@@ -394,15 +394,15 @@ NdArray ArcTan2(const NdArray& y, const NdArray& x);
 NdArray ArcTan2(const NdArray& y, float x);
 NdArray ArcTan2(float y, const NdArray& x);
 // Axis functions
-NdArray Sum(const NdArray& x, const Axis& axes = {});
-NdArray Min(const NdArray& x, const Axis& axes = {});
-NdArray Max(const NdArray& x, const Axis& axes = {});
-NdArray Mean(const NdArray& x, const Axis& axes = {});
+NdArray Sum(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
+NdArray Min(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
+NdArray Max(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
+NdArray Mean(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
 // Logistic functions
 bool All(const NdArray& x);
 bool Any(const NdArray& x);
-NdArray All(const NdArray& x, const Axis& axes);
-NdArray Any(const NdArray& x, const Axis& axes);
+NdArray All(const NdArray& x, const Axis& axes, bool keepdims = false);
+NdArray Any(const NdArray& x, const Axis& axes, bool keepdims = false);
 NdArray Where(const NdArray& cond, const NdArray& x, const NdArray& y);
 NdArray Where(const NdArray& cond, const NdArray& x, float y);
 NdArray Where(const NdArray& cond, float x, const NdArray& y);
@@ -1300,8 +1300,8 @@ void ReduceAxisImpl(const NdArray::Iter& ret_data,
 }
 
 template <typename F>
-NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
-                   F reduce_op) {
+NdArray ReduceAxis(const NdArray& src, const Axis& axes, bool keepdims,
+                   const float init_v, F reduce_op) {
     if (axes.size() == 0) {
         // No Axis -> Reduce all
         return {ReduceAxisAll(src.data(), src.size(), init_v, reduce_op)};
@@ -1323,8 +1323,8 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
         const auto& ret_child_sizes = ComputeChildSizes(ret_shape_pad);
         const auto& src_child_sizes = ComputeChildSizes(src_shape);
 
-        // Result array with value initialization
-        NdArray ret(ret_shape, init_v);
+        // Result array with value initialization (keep dim switch)
+        NdArray ret(keepdims ? ret_shape_pad : ret_shape, init_v);
 
         // Reduce
         ReduceAxisImpl(ret.data(), src.data(), ret_child_sizes, src_child_sizes,
@@ -1336,14 +1336,14 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, const float init_v,
 }
 
 template <typename F>
-NdArray ReduceAxisNoEmpty(const NdArray& src, const Axis& axes,
+NdArray ReduceAxisNoEmpty(const NdArray& src, const Axis& axes, bool keepdims,
                           const float init_v, F reduce_op) {
     // Check empty
     if (src.size() == 0) {
         throw std::runtime_error("zero-size array to reduction operation");
     }
     // Call normally
-    return ReduceAxis(src, axes, init_v, reduce_op);
+    return ReduceAxis(src, axes, keepdims, init_v, reduce_op);
 }
 
 // ----------------------- Utilities for NdArray (Print) -----------------------
@@ -2319,20 +2319,20 @@ NdArray NdArray::cross(const NdArray& other) const {
 }
 
 // -------------------------------- Axis Method --------------------------------
-NdArray NdArray::sum(const Axis& axes) const {
-    return Sum(*this, axes);
+NdArray NdArray::sum(const Axis& axes, bool keepdims) const {
+    return Sum(*this, axes, keepdims);
 }
 
-NdArray NdArray::min(const Axis& axes) const {
-    return Min(*this, axes);
+NdArray NdArray::min(const Axis& axes, bool keepdims) const {
+    return Min(*this, axes, keepdims);
 }
 
-NdArray NdArray::max(const Axis& axes) const {
-    return Max(*this, axes);
+NdArray NdArray::max(const Axis& axes, bool keepdims) const {
+    return Max(*this, axes, keepdims);
 }
 
-NdArray NdArray::mean(const Axis& axes) const {
-    return Mean(*this, axes);
+NdArray NdArray::mean(const Axis& axes, bool keepdims) const {
+    return Mean(*this, axes, keepdims);
 }
 
 // ---------------------- Template Method Specializations ----------------------
@@ -3056,46 +3056,48 @@ NdArray ArcTan2(float y, const NdArray& x) {
 }
 
 // Axis functions
-NdArray Sum(const NdArray& x, const Axis& axes) {
-    return ReduceAxis(x, axes, 0.f, std::plus<float>());
+NdArray Sum(const NdArray& x, const Axis& axes, bool keepdims) {
+    return ReduceAxis(x, axes, keepdims, 0.f, std::plus<float>());
 }
 
-NdArray Min(const NdArray& x, const Axis& axes) {
-    return ReduceAxisNoEmpty(x, axes, std::numeric_limits<float>::max(),
+NdArray Min(const NdArray& x, const Axis& axes, bool keepdims) {
+    return ReduceAxisNoEmpty(x, axes, keepdims,
+                             std::numeric_limits<float>::max(),
                              [](float a, float b) { return std::min(a, b); });
 }
 
-NdArray Max(const NdArray& x, const Axis& axes) {
-    return ReduceAxisNoEmpty(x, axes, -std::numeric_limits<float>::max(),
+NdArray Max(const NdArray& x, const Axis& axes, bool keepdims) {
+    return ReduceAxisNoEmpty(x, axes, keepdims,
+                             -std::numeric_limits<float>::max(),
                              [](float a, float b) { return std::max(a, b); });
 }
 
-NdArray Mean(const NdArray& x, const Axis& axes) {
+NdArray Mean(const NdArray& x, const Axis& axes, bool keepdims) {
     if (x.size() == 0) {
         return {std::numeric_limits<float>::quiet_NaN()};
     }
-    auto&& sum = Sum(x, axes);
+    auto&& sum = Sum(x, axes, keepdims);
     return sum / static_cast<float>(x.size() / sum.size());
 }
 
 bool All(const NdArray& x) {
     // Cast to bool
-    return static_cast<float>(All(x, {})) == static_cast<float>(true);
+    return static_cast<float>(All(x, {}, false)) == static_cast<float>(true);
 }
 
 bool Any(const NdArray& x) {
     // Cast to bool
-    return static_cast<float>(Any(x, {})) == static_cast<float>(true);
+    return static_cast<float>(Any(x, {}, false)) == static_cast<float>(true);
 }
 
-NdArray All(const NdArray& x, const Axis& axes) {
-    return ReduceAxis(x, axes, 1.f, [](float a, float b) {
+NdArray All(const NdArray& x, const Axis& axes, bool keepdims) {
+    return ReduceAxis(x, axes, keepdims, 1.f, [](float a, float b) {
         return static_cast<bool>(a) && static_cast<bool>(b);
     });
 }
 
-NdArray Any(const NdArray& x, const Axis& axes) {
-    return ReduceAxis(x, axes, 0.f, [](float a, float b) {
+NdArray Any(const NdArray& x, const Axis& axes, bool keepdims) {
+    return ReduceAxis(x, axes, keepdims, 0.f, [](float a, float b) {
         return static_cast<bool>(a) || static_cast<bool>(b);
     });
 }
