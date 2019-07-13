@@ -676,6 +676,7 @@ TEST_CASE("NdArray") {
                      "[[63, 90],\n"
                      " [225, 252]]");
         CheckNdArray(m2.sum({0, 1, 2, 3}), "[630]");
+        CheckNdArray(m1.reshape(1, 2, 3).sum({0, 1, 2}), "[15]");
     }
 
     SECTION("Min") {

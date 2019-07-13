@@ -1245,9 +1245,8 @@ static void ReduceShapesReduction(Shape& ret_shape, Shape& src_shape,
         ret_shape_cleaned.push_back(size_pool);
         src_shape_cleaned.push_back(size_pool);
     }
-    if (axis_idx != sorted_axes.size() - 1) {
-        sorted_axes[axis_idx] = static_cast<int>(ret_shape_cleaned.size()) - 1;
-    }
+    // Remove unused tail
+    sorted_axes.resize(axis_idx);
     // Return
     ret_shape = std::move(ret_shape_cleaned);
     src_shape = std::move(src_shape_cleaned);
