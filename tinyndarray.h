@@ -1308,12 +1308,14 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, bool keepdims,
                    const float init_v, F reduce_op) {
     if (axes.size() == 0) {
         // No Axis -> Reduce all
-        NdArray ret = {
-                ReduceAxisAll(src.data(), src.size(), init_v, reduce_op)};
+        float ret_v = ReduceAxisAll(src.data(), src.size(), init_v, reduce_op);
+        NdArray ret = {ret_v};
         if (keepdims) {
-            // TODO
+            Shape ret_shape(src.shape().size(), 1);
+            return ret.reshape(ret_shape);
+        } else {
+            return ret;
         }
-        return ret;
     } else {
         // Check it is possible to reduce.
         Shape src_shape = src.shape();

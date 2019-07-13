@@ -737,6 +737,8 @@ TEST_CASE("NdArray") {
                      "   [90]]],\n"
                      " [[[225],\n"
                      "   [252]]]]");
+        CheckNdArray(m1.sum({0, 1, 2, 3}, true), "[[[[630]]]]");
+        CheckNdArray(m1.sum({}, true), "[[[[630]]]]");
     }
 
     // --------------------------- Logistic operation --------------------------
