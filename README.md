@@ -428,7 +428,8 @@ NdArray::SetNumWorkers(4);
 
 ## TODO
 
-* [ ] Replace axis reduction function with more effective algorithm.
+* [x] Replace axis reduction function with more effective algorithm.
+   * [ ] Implement more effective algorithm.
 * [ ] Improve inverse function with LU decomposition.
 * [ ] Implement reference slice which dose not effect the current performance.
 * [ ] Introduce SIMD instructions.
