@@ -1179,6 +1179,10 @@ static auto CheckReductable(const Shape& shape, const Axis& axes) {
             ret_shape_pad.push_back(shape[i]);
         }
     }
+    // Empty `ret_shape` means reduce all.
+    if (ret_shape.empty()) {
+        ret_shape.push_back(1);
+    }
     return std::tuple<Shape, Shape>(std::move(ret_shape),
                                     std::move(ret_shape_pad));
 }
@@ -1186,17 +1190,16 @@ static auto CheckReductable(const Shape& shape, const Axis& axes) {
 static int ComputeReducedIndex(int src_idx,
                                const std::vector<int>& ret_child_sizes,
                                const std::vector<int>& src_child_sizes,
-                               const Axis& sorted_axes) {
+                               const int src_size, const Axis& sorted_axes) {
     // Convert source index to result index
     // [2, (3), 4, (5), 6]
     int ret_idx = 0;
     for (auto&& axis : sorted_axes) {
-        if (axis == 0) {
-            continue;  // No upper dimension
-        }
         const size_t axis_l = static_cast<size_t>(axis);
         // Accumulate upper dimension
-        const int ret_idx_base = src_idx / src_child_sizes[axis_l - 1];
+        const int skip_size =
+                (axis == 0 ? src_size : src_child_sizes[axis_l - 1]);
+        const int ret_idx_base = src_idx / skip_size;
         ret_idx += ret_idx_base * ret_child_sizes[axis_l];
         // Remove processed dimension
         src_idx = src_idx % src_child_sizes[axis_l];
@@ -1271,8 +1274,9 @@ void ReduceAxisImpl(const NdArray::Iter& ret_data,
     // Common reduce function with src_idx
     auto&& reduce = [&](int src_idx) {
         // Result index
-        const int ret_idx = ComputeReducedIndex(src_idx, ret_child_sizes,
-                                                src_child_sizes, sorted_axes);
+        const int ret_idx =
+                ComputeReducedIndex(src_idx, ret_child_sizes, src_child_sizes,
+                                    src_size, sorted_axes);
         // Reduce one source element
         float& ret_v = ret_data[ret_idx];
         ret_v = reduce_op(ret_v, src_data[src_idx]);
@@ -1304,23 +1308,29 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, bool keepdims,
                    const float init_v, F reduce_op) {
     if (axes.size() == 0) {
         // No Axis -> Reduce all
-        return {ReduceAxisAll(src.data(), src.size(), init_v, reduce_op)};
+        NdArray ret = {
+                ReduceAxisAll(src.data(), src.size(), init_v, reduce_op)};
+        if (keepdims) {
+            // TODO
+        }
+        return ret;
     } else {
         // Check it is possible to reduce.
         Shape src_shape = src.shape();
         const auto& ret_shapes = CheckReductable(src_shape, axes);
         const Shape& ret_shape = std::get<0>(ret_shapes);
-        Shape ret_shape_pad = std::get<1>(ret_shapes);
+        const Shape& ret_shape_pad = std::get<1>(ret_shapes);
 
         // Sort axes
         Axis sorted_axes = axes;
         std::sort(sorted_axes.begin(), sorted_axes.end());
 
         // Remove extra dimensions of shapes
-        ReduceShapesReduction(ret_shape_pad, src_shape, sorted_axes);
+        Shape ret_shape_pad_slim = ret_shape_pad;
+        ReduceShapesReduction(ret_shape_pad_slim, src_shape, sorted_axes);
 
         // Pre-compute child sizes
-        const auto& ret_child_sizes = ComputeChildSizes(ret_shape_pad);
+        const auto& ret_child_sizes = ComputeChildSizes(ret_shape_pad_slim);
         const auto& src_child_sizes = ComputeChildSizes(src_shape);
 
         // Result array with value initialization (keep dim switch)
