@@ -92,6 +92,7 @@ set(tinyndarray_header ${CMAKE_CURRENT_SOURCE_DIR}/../tinyndarray.h)
 # Executable file for tests (one c++ file)
 add_executable(tinyndarray_tests
     ${tinyndarray_header}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_total.cpp
 )
 setup_target(tinyndarray_tests "" "${CMAKE_THREAD_LIBS_INIT}")
@@ -99,6 +100,7 @@ setup_target(tinyndarray_tests "" "${CMAKE_THREAD_LIBS_INIT}")
 # Executable file for tests (separated c++ files)
 add_executable(tinyndarray_tests_separated
     ${tinyndarray_header}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_separated_1.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_separated_2.cpp
 )
@@ -107,6 +109,7 @@ setup_target(tinyndarray_tests_separated "" "${CMAKE_THREAD_LIBS_INIT}")
 # Executable file for tests (time consumption)
 add_executable(tinyndarray_tests_time_consumption
     ${tinyndarray_header}
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test_time_consumption.cpp
 )
 setup_target(tinyndarray_tests_time_consumption "" "${CMAKE_THREAD_LIBS_INIT}")
