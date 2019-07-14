@@ -322,14 +322,22 @@ NdArray operator<(float lhs, NdArray&& rhs);
 NdArray operator<=(float lhs, NdArray&& rhs);
 // Compound Assignment (NdArray, NdArray)
 NdArray operator+=(NdArray& lhs, const NdArray& rhs);
+NdArray operator+=(NdArray&& lhs, const NdArray& rhs);
 NdArray operator-=(NdArray& lhs, const NdArray& rhs);
+NdArray operator-=(NdArray&& lhs, const NdArray& rhs);
 NdArray operator*=(NdArray& lhs, const NdArray& rhs);
+NdArray operator*=(NdArray&& lhs, const NdArray& rhs);
 NdArray operator/=(NdArray& lhs, const NdArray& rhs);
+NdArray operator/=(NdArray&& lhs, const NdArray& rhs);
 // Compound Assignment (NdArray, float)
 NdArray operator+=(NdArray& lhs, float rhs);
+NdArray operator+=(NdArray&& lhs, float rhs);
 NdArray operator-=(NdArray& lhs, float rhs);
+NdArray operator-=(NdArray&& lhs, float rhs);
 NdArray operator*=(NdArray& lhs, float rhs);
+NdArray operator*=(NdArray&& lhs, float rhs);
 NdArray operator/=(NdArray& lhs, float rhs);
+NdArray operator/=(NdArray&& lhs, float rhs);
 
 // ---------------------------- Operator Functions -----------------------------
 // Arithmetic operators (NdArray, NdArray)
@@ -2790,9 +2798,19 @@ NdArray operator+=(NdArray& lhs, const NdArray& rhs) {
                                     false);  // force in-place
 }
 
+NdArray operator+=(NdArray&& lhs, const NdArray& rhs) {
+    return ApplyDualOpInplace(std::move(lhs), rhs, std::plus<float>(),
+                              false);  // force in-place
+}
+
 NdArray operator-=(NdArray& lhs, const NdArray& rhs) {
     return lhs = ApplyDualOpInplace(std::move(lhs), rhs, std::minus<float>(),
                                     false);  // force in-place
+}
+
+NdArray operator-=(NdArray&& lhs, const NdArray& rhs) {
+    return ApplyDualOpInplace(std::move(lhs), rhs, std::minus<float>(),
+                              false);  // force in-place
 }
 
 NdArray operator*=(NdArray& lhs, const NdArray& rhs) {
@@ -2801,9 +2819,19 @@ NdArray operator*=(NdArray& lhs, const NdArray& rhs) {
                                     false);  // force in-place
 }
 
+NdArray operator*=(NdArray&& lhs, const NdArray& rhs) {
+    return ApplyDualOpInplace(std::move(lhs), rhs, std::multiplies<float>(),
+                              false);  // force in-place
+}
+
 NdArray operator/=(NdArray& lhs, const NdArray& rhs) {
     return lhs = ApplyDualOpInplace(std::move(lhs), rhs, std::divides<float>(),
                                     false);  // force in-place
+}
+
+NdArray operator/=(NdArray&& lhs, const NdArray& rhs) {
+    return ApplyDualOpInplace(std::move(lhs), rhs, std::divides<float>(),
+                              false);  // force in-place
 }
 
 // Compound Assignment (NdArray, float)
@@ -2811,16 +2839,32 @@ NdArray operator+=(NdArray& lhs, float rhs) {
     return lhs = Add(std::move(lhs), rhs);
 }
 
+NdArray operator+=(NdArray&& lhs, float rhs) {
+    return Add(std::move(lhs), rhs);
+}
+
 NdArray operator-=(NdArray& lhs, float rhs) {
     return lhs = Subtract(std::move(lhs), rhs);
+}
+
+NdArray operator-=(NdArray&& lhs, float rhs) {
+    return Subtract(std::move(lhs), rhs);
 }
 
 NdArray operator*=(NdArray& lhs, float rhs) {
     return lhs = Multiply(std::move(lhs), rhs);
 }
 
+NdArray operator*=(NdArray&& lhs, float rhs) {
+    return Multiply(std::move(lhs), rhs);
+}
+
 NdArray operator/=(NdArray& lhs, float rhs) {
     return lhs = Divide(std::move(lhs), rhs);
+}
+
+NdArray operator/=(NdArray&& lhs, float rhs) {
+    return Divide(std::move(lhs), rhs);
 }
 
 // ---------------------------- Operator Functions -----------------------------

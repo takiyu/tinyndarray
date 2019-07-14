@@ -1212,7 +1212,7 @@ TEST_CASE("NdArray") {
                 static_cast<NdArray (*)(float, NdArray&&)>(operator<=));
     }
 
-    SECTION("Compound assignment operators (NdArray, NdArray) (in-plafce)") {
+    SECTION("Compound assignment operators (NdArray, NdArray) (in-plafce, &)") {
         auto m0 = NdArray::Arange(6.f).reshape(2, 3);
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);
         auto m2 = NdArray::Arange(6.f).reshape(2, 3);
@@ -1257,7 +1257,7 @@ TEST_CASE("NdArray") {
         CHECK_THROWS(m6 *= m5.reshape(3, 1));
     }
 
-    SECTION("Compound assignment operators (NdArray, float) (in-plafce)") {
+    SECTION("Compound assignment operators (NdArray, float) (in-plafce, &)") {
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);
         auto m2 = NdArray::Arange(6.f).reshape(2, 3);
         auto m3 = NdArray::Arange(6.f).reshape(2, 3);
@@ -1286,6 +1286,45 @@ TEST_CASE("NdArray") {
         CHECK(m2.id() == m2_id);
         CHECK(m3.id() == m3_id);
         CHECK(m4.id() == m4_id);
+    }
+
+    SECTION("Compound assignment operators (in-plafce, &&)") {
+        // (NdArray, NdArray)
+        auto m1 = NdArray::Arange(6.f).reshape(2, 3) += NdArray::Arange(3.f);
+        auto m2 = NdArray::Arange(6.f).reshape(2, 3) -= NdArray::Arange(3.f);
+        auto m3 = NdArray::Arange(6.f).reshape(2, 3) *= NdArray::Arange(3.f);
+        auto m4 = NdArray::Arange(6.f).reshape(2, 3) /= NdArray::Arange(3.f);
+        CheckNdArray(m1,
+                     "[[0, 2, 4],\n"
+                     " [3, 5, 7]]");
+        CheckNdArray(m2,
+                     "[[0, 0, 0],\n"
+                     " [3, 3, 3]]");
+        CheckNdArray(m3,
+                     "[[0, 1, 4],\n"
+                     " [0, 4, 10]]");
+        // `0.f / 0.f` can be both of `nan` and `-nan`.
+        m4(0, 0) = std::abs(m4(0, 0));
+        CheckNdArray(m4,
+                     "[[nan, 1, 1],\n"
+                     " [inf, 4, 2.5]]");
+        // (NdArray, float)
+        auto m5 = NdArray::Arange(6.f).reshape(2, 3) += 10.f;
+        auto m6 = NdArray::Arange(6.f).reshape(2, 3) -= 10.f;
+        auto m7 = NdArray::Arange(6.f).reshape(2, 3) *= 10.f;
+        auto m8 = NdArray::Arange(6.f).reshape(2, 3) /= 10.f;
+        CheckNdArray(m5,
+                     "[[10, 11, 12],\n"
+                     " [13, 14, 15]]");
+        CheckNdArray(m6,
+                     "[[-10, -9, -8],\n"
+                     " [-7, -6, -5]]");
+        CheckNdArray(m7,
+                     "[[0, 10, 20],\n"
+                     " [30, 40, 50]]");
+        CheckNdArray(m8,
+                     "[[0, 0.1, 0.2],\n"
+                     " [0.3, 0.4, 0.5]]");
     }
 
     // --------------------------- Operator function ---------------------------
