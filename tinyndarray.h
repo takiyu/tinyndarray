@@ -1895,6 +1895,10 @@ NdArray::NdArray(FloatList<7> init_list) : NdArray(CheckFListShape(init_list)) {
     CopyFListElems(init_list, m_sub->v.get());
 }
 
+NdArray::NdArray(FloatList<8> init_list) : NdArray(CheckFListShape(init_list)) {
+    CopyFListElems(init_list, m_sub->v.get());
+}
+
 NdArray::NdArray(FloatList<9> init_list) : NdArray(CheckFListShape(init_list)) {
     CopyFListElems(init_list, m_sub->v.get());
 }
