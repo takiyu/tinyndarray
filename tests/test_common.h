@@ -1421,6 +1421,12 @@ TEST_CASE("NdArray") {
         CheckNdArray(Mean(m2, {2, 1}), "[-3.5, 2.5]");
     }
 
+    SECTION("Function Shape") {
+        auto m1 = NdArray::Arange(6.f).reshape(1, 2, 1, 3, 1);
+        CHECK(Reshape(m1, {2, 1, 3}).shape() == Shape{2, 1, 3});
+        CHECK(Squeeze(m1).shape() == Shape{2, 3});
+    }
+
     SECTION("Function Inverse (2d)") {
         auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
         auto m2 = Inv(m1);

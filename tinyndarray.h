@@ -408,6 +408,9 @@ NdArray Where(const NdArray& cond, const NdArray& x, const NdArray& y);
 NdArray Where(const NdArray& cond, const NdArray& x, float y);
 NdArray Where(const NdArray& cond, float x, const NdArray& y);
 NdArray Where(const NdArray& cond, float x, float y);
+// Shape functions
+NdArray Reshape(const NdArray& x, const Shape& shape);
+NdArray Squeeze(const NdArray& x);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -1297,8 +1300,8 @@ NdArray ReduceAxis(const NdArray& src, const Axis& axes, bool keepdims,
         NdArray ret;
         for (size_t i = 0; i < axes.size(); i++) {
             // From back
-            const size_t axis = static_cast<size_t>(
-                    sorted_axes[axes.size() - i - 1]);
+            const size_t axis =
+                    static_cast<size_t>(sorted_axes[axes.size() - i - 1]);
             // Reduce
             if (i == 0) {
                 ret = ReduceAxisOne(src, axis, init_v, reduce_op);
@@ -3100,6 +3103,21 @@ NdArray Where(const NdArray& cond, float x, const NdArray& y) {
 
 NdArray Where(const NdArray& cond, float x, float y) {
     return ApplyWhereOp(cond, x, y);
+}
+
+// Shape functions
+NdArray Reshape(const NdArray& x, const Shape& shape) {
+    return x.reshape(shape);
+}
+
+NdArray Squeeze(const NdArray& x) {
+    Shape ret_shape;
+    for (auto&& s : x.shape()) {
+        if (s != 1) {
+            ret_shape.push_back(s);
+        }
+    }
+    return x.reshape(ret_shape);
 }
 
 // Inverse
