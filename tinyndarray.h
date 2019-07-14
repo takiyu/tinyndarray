@@ -27,6 +27,7 @@ namespace tinyndarray {
 // #############################################################################
 #ifndef TINYNDARRAY_NO_DECLARATION
 
+// Forward Declaration of TinyNdArray
 class NdArray;
 using InitShape = std::initializer_list<int>;
 using Shape = std::vector<int>;
