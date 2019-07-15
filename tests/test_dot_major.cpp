@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <exception>
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>

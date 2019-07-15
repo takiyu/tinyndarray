@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <exception>
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>
@@ -530,7 +531,7 @@ T Clamp(const T& v, const T& lower, const T& upper) {
 }
 
 template <typename F>
-inline auto ReverseOp(F op) {
+inline std::function<float(float, float)> ReverseOp(F op) {
     return [op](float a, float b) { return op(b, a); };  // Swap left and right
 }
 
@@ -985,8 +986,11 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
 #endif
 }
 
+using WrappedOp =
+        std::function<void(const NdArray::Iter& o, const NdArray::ConstIter& l,
+                           const NdArray::ConstIter& r)>;
 template <typename F>
-inline auto WrapOpForIter(F op) {
+inline WrappedOp WrapOpForIter(F op) {
     return [op](const NdArray::Iter& o, const NdArray::ConstIter& l,
                 const NdArray::ConstIter& r) {
         *o = op(*l, *r);  // wrap pointer operation for iterator's one
@@ -1198,7 +1202,8 @@ static Shape CheckReductable(const Shape& shape, const Axis& axes,
     }
 }
 
-static auto ComputeReduceSizes(const Shape& src_shape, const size_t axis) {
+static std::tuple<Shape, int, int, int> ComputeReduceSizes(
+        const Shape& src_shape, const size_t axis) {
     // Compute result shape
     Shape ret_shape;
     for (size_t dim = 0; dim < src_shape.size(); dim++) {
@@ -1460,7 +1465,12 @@ static void DotNdArray1d2dImplRowMajor(const NdArray::Iter& ret_data,
     }
 }
 
-static auto SelectDot1d2dOp(const Shape& l_shape, const Shape& r_shape) {
+using Dot1d2dOp = std::function<void(const NdArray::Iter& ret_data,
+                                     const NdArray::ConstIter& l_data,
+                                     const NdArray::ConstIter& r_data,
+                                     const int n_col, const int n_contract)>;
+
+static Dot1d2dOp SelectDot1d2dOp(const Shape& l_shape, const Shape& r_shape) {
     // Debug macros
 #if defined(TINYNDARRAY_FORCE_DOT_COLMAJOR)
     (void)l_shape;

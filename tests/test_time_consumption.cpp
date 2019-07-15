@@ -16,17 +16,16 @@ constexpr int H = 20000;
 constexpr int WH = W * H;
 constexpr int N_WORKERS = -1;
 
-static auto MeasureOpTime(std::function<NdArray()> op) {
+static std::tuple<float, NdArray> MeasureOpTime(std::function<NdArray()> op) {
     g_timer.start();
     auto&& ret = op();
     g_timer.end();
-    return std::tuple<float, NdArray>(g_timer.getElapsedMsec(), std::move(ret));
+    return std::make_tuple(g_timer.getElapsedMsec(), std::move(ret));
 }
 
 template <typename... T>
-auto SplitRetItems(T... items) {
-    return std::tuple<std::vector<float>, std::vector<NdArray>>(
-            {std::get<0>(items)...}, {std::get<1>(items)...});
+std::tuple<std::vector<float>, std::vector<NdArray>> SplitRetItems(T... items) {
+    return {{std::get<0>(items)...}, {std::get<1>(items)...}};
 }
 
 static void PrintTimeResult(const std::string& tag,

@@ -7,7 +7,7 @@ message(STATUS "Build tinyndarray tests")
 # ------------------------------------------------------------------------------
 project(tinyndarray_tests CXX C)
 
-set(CMAKE_CXX_STANDARD 14)  # C++ 14
+set(CMAKE_CXX_STANDARD 11)  # C++ 11
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
     set(LINK_TYPE STATIC)
