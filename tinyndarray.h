@@ -1726,13 +1726,12 @@ NdArray::~NdArray() = default;
 // --------------------------------- Substance ---------------------------------
 class NdArray::Substance {
 public:
-    Substance() {}
-    Substance(size_t size_, const Shape& shape_)
+    Substance(size_t size_ = 0, const Shape& shape_ = {0})
         : size(size_),
           shape(shape_),
           v(new float[size_], std::default_delete<float[]>()) {}
-    size_t size = 0;
-    Shape shape = {0};
+    size_t size;
+    Shape shape;
     std::shared_ptr<float> v;  // C++17: Replace with `shared_ptr<float[]>`.
 };
 
