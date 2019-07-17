@@ -1730,7 +1730,7 @@ public:
     static size_t GetTotalMemory() {
         // Sum up memory sizes
         size_t sum_mem = 0;
-        for (auto&& key_val: s_mem_sizes) {
+        for (auto&& key_val : s_mem_sizes) {
             sum_mem += key_val.second;
         }
         return sum_mem;
