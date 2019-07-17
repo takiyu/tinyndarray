@@ -426,6 +426,14 @@ NdArray::SetNumWorkers(1);
 NdArray::SetNumWorkers(4);
 </pre>
 
+## Macros
+
+* TINYNDARRAY_H_ONCE
+* TINYNDARRAY_NO_INCLUDE
+* TINYNDARRAY_NO_NAMESPACE
+* TINYNDARRAY_NO_DECLARATION
+* TINYNDARRAY_IMPLEMENTATION
+
 ## TODO
 
 * [x] Replace axis reduction function with more effective algorithm.
