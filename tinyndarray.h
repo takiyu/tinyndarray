@@ -108,6 +108,10 @@ public:
     static int GetBatchScale();
     static void SetBatchScale(int batch_scale);
 
+    // Profiling methods (Defining of `TINYNDARRAY_PROFILE_MEMORY` is needed)
+    static size_t GetNumInstance();
+    static size_t GetTotalMemory();
+
     uintptr_t id() const;
     bool empty() const;
     size_t size() const;
@@ -1702,6 +1706,44 @@ static NdArray InvertNdArrayInplace(NdArray&& src) {
     return std::move(src);
 }
 
+// --------------------- Utilities for NdArray (Profiling) ---------------------
+#ifdef TINYNDARRAY_PROFILE_MEMORY
+class MemProfiler {
+public:
+    MemProfiler() {}
+    ~MemProfiler() {}
+
+    static void Register(std::shared_ptr<float> v, size_t size) {
+        Unregister(v);  // Ensure not to be registered.
+        s_mem_sizes[v] = size;
+    }
+
+    static void Unregister(std::shared_ptr<float> v) {
+        // Just remove pointer entry
+        s_mem_sizes.erase(v);
+    }
+
+    static size_t GetNumInstance() {
+        return s_mem_sizes.size();
+    }
+
+    static size_t GetTotalMemory() {
+        // Sum up memory sizes
+        size_t sum_mem = 0;
+        for (auto&& key_val: s_mem_sizes) {
+            sum_mem += key_val.second;
+        }
+        return sum_mem;
+    }
+
+private:
+    static std::map<std::shared_ptr<float>, size_t> s_mem_sizes;
+};
+
+std::map<std::shared_ptr<float>, size_t> MemProfiler::s_mem_sizes;
+
+#endif  // TINYNDARRAY_PROFILE_MEMORY
+
 // =============================================================================
 // ============================ NdArray Definition =============================
 // =============================================================================
@@ -1729,7 +1771,17 @@ public:
     Substance(size_t size_ = 0, const Shape& shape_ = {0})
         : size(size_),
           shape(shape_),
-          v(new float[size_], std::default_delete<float[]>()) {}
+          v(new float[size_], std::default_delete<float[]>()) {
+#ifdef TINYNDARRAY_PROFILE_MEMORY
+        MemProfiler::Register(v, size);
+#endif  // TINYNDARRAY_PROFILE_MEMORY
+    }
+    ~Substance() {
+#ifdef TINYNDARRAY_PROFILE_MEMORY
+        MemProfiler::Unregister(v);
+#endif  // TINYNDARRAY_PROFILE_MEMORY
+    }
+
     size_t size;
     Shape shape;
     std::shared_ptr<float> v;  // C++17: Replace with `shared_ptr<float[]>`.
@@ -2025,6 +2077,25 @@ int NdArray::GetBatchScale() {
 
 void NdArray::SetBatchScale(int batch_scale) {
     s_batch_scale = batch_scale;
+}
+
+// ----------------------- Static Methods for Profiling ------------------------
+size_t NdArray::GetNumInstance() {
+#ifdef TINYNDARRAY_PROFILE_MEMORY
+    return MemProfiler::GetNumInstance();
+#else
+    throw std::runtime_error("Profiling is not enabled. Please defilne "
+                             "`TINYNDARRAY_PROFILE_MEMORY`");
+#endif  // TINYNDARRAY_PROFILE_MEMORY
+}
+
+size_t NdArray::GetTotalMemory() {
+#ifdef TINYNDARRAY_PROFILE_MEMORY
+    return MemProfiler::GetTotalMemory();
+#else
+    throw std::runtime_error("Profiling is not enabled. Please defilne "
+                             "`TINYNDARRAY_PROFILE_MEMORY`");
+#endif  // TINYNDARRAY_PROFILE_MEMORY
 }
 
 // ------------------------------- Basic Methods -------------------------------
