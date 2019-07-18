@@ -426,6 +426,15 @@ NdArray::SetNumWorkers(1);
 NdArray::SetNumWorkers(4);
 </pre>
 
+## Memory profiling
+
+When a macro `TINYNDARRAY_PROFILE_MEMORY` is defined, memory profiler is activated.
+
+The following methods can be used to get the number of instances and the size of allocated memories..
+
+```NdArray::GetNumInstance()```
+```NdArray::GetTotalMemory()```
+
 ## Macros
 
 * TINYNDARRAY_H_ONCE

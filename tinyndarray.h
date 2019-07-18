@@ -1714,26 +1714,49 @@ public:
     ~MemProfiler() {}
 
     static void Register(std::shared_ptr<float> v, size_t size) {
-        Unregister(v);  // Ensure not to be registered.
+        // Compare with previously registered value
+        if (s_mem_sizes.count(v) && s_mem_sizes[v] != size) {
+            throw std::runtime_error("Invalid register for MemProfiler.");
+        }
+        // Register (overwrite)
         s_mem_sizes[v] = size;
     }
 
-    static void Unregister(std::shared_ptr<float> v) {
-        // Just remove pointer entry
-        s_mem_sizes.erase(v);
+    static void Unregister(const std::shared_ptr<float>& v) {
+        // If the pointer is owned by only two (there is no copy of the
+        // pointer), unregister
+        if (v.use_count() <= 2) {
+            s_mem_sizes.erase(v);
+        }
     }
 
     static size_t GetNumInstance() {
+        // First update the instances
+        Update();
+        // Return
         return s_mem_sizes.size();
     }
 
     static size_t GetTotalMemory() {
+        // First update the instances
+        Update();
         // Sum up memory sizes
         size_t sum_mem = 0;
         for (auto&& key_val : s_mem_sizes) {
             sum_mem += key_val.second;
         }
         return sum_mem;
+    }
+
+    static void Update() {
+        // Remove entries which have only 1 reference.
+        for (auto it = s_mem_sizes.begin(); it != s_mem_sizes.end();) {
+            if (it->first.use_count() <= 1) {
+                it = s_mem_sizes.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
 
 private:
