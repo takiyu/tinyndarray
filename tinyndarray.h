@@ -1218,21 +1218,20 @@ static auto ComputeReduceSizes(const Shape& src_shape, const size_t axis) {
     }
 
     // Compute sizes
-    int upper_size = 1, lower_size = 1, n_reduce = 0;
+    int n_upper = 1, n_lower = 1, n_reduce = 0;
     for (size_t dim = 0; dim < src_shape.size(); dim++) {
         // Sizes
         if (dim < axis) {
-            upper_size *= src_shape[dim];
+            n_upper *= src_shape[dim];
         } else if (axis < dim) {
-            lower_size *= src_shape[dim];
+            n_lower *= src_shape[dim];
         } else {
             n_reduce = src_shape[dim];
         }
     }
 
     // Return
-    return std::make_tuple(std::move(ret_shape), upper_size, lower_size,
-                           n_reduce);
+    return std::make_tuple(std::move(ret_shape), n_upper, n_lower, n_reduce);
 }
 
 template <typename F>
@@ -1252,8 +1251,8 @@ NdArray ReduceAxisOne(const NdArray& src, const size_t axis, const float init_v,
     // Compute sizes
     auto reduce_sizes = ComputeReduceSizes(src_shape, axis);
     const Shape& ret_shape = std::get<0>(reduce_sizes);
-    const int upper_size = std::get<1>(reduce_sizes);
-    const int lower_size = std::get<2>(reduce_sizes);
+    const int n_upper = std::get<1>(reduce_sizes);
+    const int n_lower = std::get<2>(reduce_sizes);
     const int n_reduce = std::get<3>(reduce_sizes);
 
     // Create result array with fill
@@ -1264,11 +1263,11 @@ NdArray ReduceAxisOne(const NdArray& src, const size_t axis, const float init_v,
 
     // Reduce function
     auto&& reduce = [=](int u_idx) {
-        const int ret_idx_base = u_idx * lower_size;
-        const int src_idx_base0 = u_idx * n_reduce * lower_size;
-        for (int r_idx = 0; r_idx < n_reduce; r_idx++) {
-            const int src_idx_base1 = src_idx_base0 + r_idx * lower_size;
-            for (int l_idx = 0; l_idx < lower_size; l_idx++) {
+        const int ret_idx_base = u_idx * n_lower;
+        const int src_idx_base0 = u_idx * n_reduce * n_lower;
+        for (int redu_idx = 0; redu_idx < n_reduce; redu_idx++) {
+            const int src_idx_base1 = src_idx_base0 + redu_idx * n_lower;
+            for (int l_idx = 0; l_idx < n_lower; l_idx++) {
                 // Reduce
                 float& r = ret_data[ret_idx_base + l_idx];
                 const float s = src_data[src_idx_base1 + l_idx];
@@ -1277,12 +1276,12 @@ NdArray ReduceAxisOne(const NdArray& src, const size_t axis, const float init_v,
         }
     };
 
-    // TODO: Run parallel for `axis == 0` (means `upper_size == 1`)
+    // TODO: Run parallel for `axis == 0` (means `n_upper == 1`)
 
 #if 1  // Run in parallel
-    RunParallel(upper_size, reduce);
+    RunParallel(n_upper, reduce);
 #else  // Run sequentially
-    for (int u_idx = 0; u_idx < upper_size; u_idx++) {
+    for (int u_idx = 0; u_idx < n_upper; u_idx++) {
         reduce(u_idx);
     }
 #endif
@@ -1645,22 +1644,67 @@ static Shape CheckStackable(const std::vector<NdArray>& xs, int axis) {
     return shape;
 }
 
-static NdArray StackNdArray(const std::vector<NdArray>& xs, int axis) {
-    // Check it is possible to stack
-    const Shape& src_shape = CheckStackable(xs, axis);
-    const int n_stack = static_cast<int>(xs.size());
+static auto ComputeStackSizes(size_t n_src, const Shape& src_shape, int axis) {
+    // Sizes
+    const int n_upper =
+            std::accumulate(src_shape.begin(), src_shape.begin() + axis, 1,
+                            std::multiplies<int>());
+    const int n_lower =
+            std::accumulate(src_shape.begin() + axis, src_shape.end(), 1,
+                            std::multiplies<int>());
+    const int n_stack = static_cast<int>(n_src);
 
-    // Result shape
+    // Create result shape
     Shape ret_shape;
     ret_shape.insert(ret_shape.end(), src_shape.begin(),
-                     src_shape.begin() + axis);  //  Higher dimensions
-    ret_shape.push_back(n_stack);  // Stacking dimension
+                     src_shape.begin() + axis);  //  Upper dimensions
+    ret_shape.push_back(n_stack);                // Stacking dimension
     ret_shape.insert(ret_shape.end(), src_shape.begin() + axis,
                      src_shape.end());  // Lower dimensions
 
+    return std::make_tuple(std::move(ret_shape), n_upper, n_lower, n_stack);
+}
+
+static NdArray StackNdArray(const std::vector<NdArray>& xs, int axis) {
+    // Check it is possible to stack
+    const Shape& src_shape = CheckStackable(xs, axis);
+
+    // Compute stack sizes
+    auto stack_sizes = ComputeStackSizes(xs.size(), src_shape, axis);
+    const Shape& ret_shape = std::get<0>(stack_sizes);
+    const int n_upper = std::get<1>(stack_sizes);
+    const int n_lower = std::get<2>(stack_sizes);
+    const int n_stack = std::get<3>(stack_sizes);
+
     // Create result array
     NdArray ret(ret_shape);
-    std::cout << ret_shape << std::endl;
+    auto ret_data = ret.data();
+
+    // Core function to copy
+    auto copy_lower_func = [&](const int stack_idx, const int ret_idx_base0,
+                               const int src_idx_base) {
+        const int ret_idx_base1 = (ret_idx_base0 + stack_idx) * n_lower;
+        auto src_data = xs[static_cast<size_t>(stack_idx)].data();
+        for (int l_idx = 0; l_idx < n_lower; l_idx++) {
+            ret_data[ret_idx_base1 + l_idx] = src_data[src_idx_base + l_idx];
+        }
+    };
+
+    // Switch by upper size
+    if (n_upper == 1) {
+        // Run in parallel of stack direction
+        RunParallel(n_stack,
+                    [&](int stack_idx) { copy_lower_func(stack_idx, 0, 0); });
+    } else {
+        // Run in parallel of high dimension's direction
+        RunParallel(n_upper, [&](int u_idx) {
+            const int ret_idx_base0 = u_idx * n_stack;
+            const int src_idx_base = u_idx * n_lower;
+            for (int stack_idx = 0; stack_idx < n_stack; stack_idx++) {
+                copy_lower_func(stack_idx, ret_idx_base0, src_idx_base);
+            }
+        });
+    }
 
     return ret;
 }
@@ -3306,8 +3350,8 @@ NdArray Stack(const std::vector<NdArray>& xs, int axis) {
     return StackNdArray(xs, axis);
 }
 
-std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis) {
-}
+// std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis) {
+// }
 
 // Inverse
 NdArray Inv(const NdArray& x) {

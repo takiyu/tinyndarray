@@ -1469,9 +1469,39 @@ TEST_CASE("NdArray") {
     SECTION("Function Group") {
         auto m1 = NdArray::Arange(12.f).reshape(4, 3);
         auto m2 = NdArray::Arange(12.f).reshape(4, 3) + 1.f;
-        Stack({m1, m2});
-        Stack({m1, m2}, 1);
-        Stack({m1, m2}, 2);
+        CheckNdArray(Stack({m1, m2}, 0),
+                     "[[[0, 1, 2],\n"
+                     "  [3, 4, 5],\n"
+                     "  [6, 7, 8],\n"
+                     "  [9, 10, 11]],\n"
+                     " [[1, 2, 3],\n"
+                     "  [4, 5, 6],\n"
+                     "  [7, 8, 9],\n"
+                     "  [10, 11, 12]]]");
+
+        CheckNdArray(Stack({m1, m2}, 1),
+                     "[[[0, 1, 2],\n"
+                     "  [1, 2, 3]],\n"
+                     " [[3, 4, 5],\n"
+                     "  [4, 5, 6]],\n"
+                     " [[6, 7, 8],\n"
+                     "  [7, 8, 9]],\n"
+                     " [[9, 10, 11],\n"
+                     "  [10, 11, 12]]]");
+
+        CheckNdArray(Stack({m1, m2}, 2),
+                     "[[[0, 1],\n"
+                     "  [1, 2],\n"
+                     "  [2, 3]],\n"
+                     " [[3, 4],\n"
+                     "  [4, 5],\n"
+                     "  [5, 6]],\n"
+                     " [[6, 7],\n"
+                     "  [7, 8],\n"
+                     "  [8, 9]],\n"
+                     " [[9, 10],\n"
+                     "  [10, 11],\n"
+                     "  [11, 12]]]");
     }
 
     SECTION("Function Inverse (2d)") {
