@@ -1648,16 +1648,17 @@ static Shape CheckStackable(const std::vector<NdArray>& xs, int axis) {
 static NdArray StackNdArray(const std::vector<NdArray>& xs, int axis) {
     // Check it is possible to stack
     const Shape& src_shape = CheckStackable(xs, axis);
-
     const int n_stack = static_cast<int>(xs.size());
 
     // Result shape
     Shape ret_shape;
-    auto src_shape_begin = src_shape.begin();
-    ret_shape.insert(ret_shape.end(), src_shape_begin, src_shape_begin + axis);
-    ret_shape.push_back(n_stack);
-    ret_shape.insert(ret_shape.end(), src_shape_begin + axis, src_shape.end());
+    ret_shape.insert(ret_shape.end(), src_shape.begin(),
+                     src_shape.begin() + axis);  //  Higher dimensions
+    ret_shape.push_back(n_stack);  // Stacking dimension
+    ret_shape.insert(ret_shape.end(), src_shape.begin() + axis,
+                     src_shape.end());  // Lower dimensions
 
+    // Create result array
     NdArray ret(ret_shape);
     std::cout << ret_shape << std::endl;
 
