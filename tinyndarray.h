@@ -423,6 +423,9 @@ NdArray Where(const NdArray& cond, float x, float y);
 // Shape functions
 NdArray Reshape(const NdArray& x, const Shape& shape);
 NdArray Squeeze(const NdArray& x);
+// Grouping functions
+NdArray Stack(const std::vector<NdArray>& xs, int axis = 0);
+std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis = 0);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -1618,6 +1621,46 @@ NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, F op) {
     // Apply broadcast
     NdArray ret(ret_shape);
     ApplyOpBroadcast<ret_step>(ret, lhs, rhs, 1, op);
+    return ret;
+}
+
+// ----------------------- Utilities for NdArray (Stack) -----------------------
+static Shape CheckStackable(const std::vector<NdArray>& xs, int axis) {
+    // Check empty
+    if (xs.empty()) {
+        throw std::runtime_error("Need at least one array to stack");
+    }
+    // Check same shape
+    const Shape& shape = xs[0].shape();
+    for (size_t i = 1; i < xs.size(); i++) {
+        if (shape != xs[i].shape()) {
+            throw std::runtime_error("all input arrays must have the same "
+                                     "shape");
+        }
+    }
+    // Check axis
+    if (axis < 0 || static_cast<int>(xs.size()) < axis) {
+        throw std::runtime_error("Out of bounds for dimension (Stack)");
+    }
+    return shape;
+}
+
+static NdArray StackNdArray(const std::vector<NdArray>& xs, int axis) {
+    // Check it is possible to stack
+    const Shape& src_shape = CheckStackable(xs, axis);
+
+    const int n_stack = static_cast<int>(xs.size());
+
+    // Result shape
+    Shape ret_shape;
+    auto src_shape_begin = src_shape.begin();
+    ret_shape.insert(ret_shape.end(), src_shape_begin, src_shape_begin + axis);
+    ret_shape.push_back(n_stack);
+    ret_shape.insert(ret_shape.end(), src_shape_begin + axis, src_shape.end());
+
+    NdArray ret(ret_shape);
+    std::cout << ret_shape << std::endl;
+
     return ret;
 }
 
@@ -3255,6 +3298,14 @@ NdArray Squeeze(const NdArray& x) {
         }
     }
     return x.reshape(ret_shape);
+}
+
+// Grouping functions
+NdArray Stack(const std::vector<NdArray>& xs, int axis) {
+    return StackNdArray(xs, axis);
+}
+
+std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis) {
 }
 
 // Inverse

@@ -1466,6 +1466,14 @@ TEST_CASE("NdArray") {
         CHECK(Squeeze(m1).shape() == Shape{2, 3});
     }
 
+    SECTION("Function Group") {
+        auto m1 = NdArray::Arange(12.f).reshape(4, 3);
+        auto m2 = NdArray::Arange(12.f).reshape(4, 3) + 1.f;
+        Stack({m1, m2});
+        Stack({m1, m2}, 1);
+        Stack({m1, m2}, 2);
+    }
+
     SECTION("Function Inverse (2d)") {
         auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
         auto m2 = Inv(m1);
