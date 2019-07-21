@@ -1645,22 +1645,21 @@ static Shape CheckStackable(const std::vector<NdArray>& xs, int axis) {
 }
 
 static auto ComputeStackSizes(size_t n_src, const Shape& src_shape, int axis) {
+    const auto& src_s_iter0 = src_shape.begin();
+    const auto& src_s_iter1 = src_shape.begin() + axis;
+    const auto& src_s_iter2 = src_shape.end();
+    const auto& mul = std::multiplies<int>();
+
     // Sizes
-    const int n_upper =
-            std::accumulate(src_shape.begin(), src_shape.begin() + axis, 1,
-                            std::multiplies<int>());
-    const int n_lower =
-            std::accumulate(src_shape.begin() + axis, src_shape.end(), 1,
-                            std::multiplies<int>());
+    const int n_upper = std::accumulate(src_s_iter0, src_s_iter1, 1, mul);
+    const int n_lower = std::accumulate(src_s_iter1, src_s_iter2, 1, mul);
     const int n_stack = static_cast<int>(n_src);
 
     // Create result shape
     Shape ret_shape;
-    ret_shape.insert(ret_shape.end(), src_shape.begin(),
-                     src_shape.begin() + axis);  //  Upper dimensions
-    ret_shape.push_back(n_stack);                // Stacking dimension
-    ret_shape.insert(ret_shape.end(), src_shape.begin() + axis,
-                     src_shape.end());  // Lower dimensions
+    ret_shape.insert(ret_shape.end(), src_s_iter0, src_s_iter1);  // Upper
+    ret_shape.push_back(n_stack);  // Stacking dimension
+    ret_shape.insert(ret_shape.end(), src_s_iter1, src_s_iter2);  // Lower
 
     return std::make_tuple(std::move(ret_shape), n_upper, n_lower, n_stack);
 }
