@@ -1466,7 +1466,7 @@ TEST_CASE("NdArray") {
         CHECK(Squeeze(m1).shape() == Shape{2, 3});
     }
 
-    SECTION("Function Group") {
+    SECTION("Function Stack") {
         auto m1 = NdArray::Arange(12.f).reshape(4, 3);
         auto m2 = NdArray::Arange(12.f).reshape(4, 3) + 1.f;
         CheckNdArray(Stack({m1, m2}, 0),
@@ -1478,7 +1478,6 @@ TEST_CASE("NdArray") {
                      "  [4, 5, 6],\n"
                      "  [7, 8, 9],\n"
                      "  [10, 11, 12]]]");
-
         CheckNdArray(Stack({m1, m2}, 1),
                      "[[[0, 1, 2],\n"
                      "  [1, 2, 3]],\n"
@@ -1488,7 +1487,6 @@ TEST_CASE("NdArray") {
                      "  [7, 8, 9]],\n"
                      " [[9, 10, 11],\n"
                      "  [10, 11, 12]]]");
-
         CheckNdArray(Stack({m1, m2}, 2),
                      "[[[0, 1],\n"
                      "  [1, 2],\n"
@@ -1502,6 +1500,54 @@ TEST_CASE("NdArray") {
                      " [[9, 10],\n"
                      "  [10, 11],\n"
                      "  [11, 12]]]");
+        CHECK_THROWS(Stack({m1, m2}, -1));
+        CHECK_THROWS(Stack({m1, m2}, 3));
+    }
+
+    SECTION("Function Concatenate") {
+        auto m1 = NdArray::Arange(12.f).reshape(4, 3);
+        auto m2 = NdArray::Arange(6.f).reshape(2, 3) + 1.f;
+        auto m3 = NdArray::Arange(8.f).reshape(4, 2) + 1.f;
+        CheckNdArray(Concatenate({m1, m2}, 0),
+                     "[[0, 1, 2],\n"
+                     " [3, 4, 5],\n"
+                     " [6, 7, 8],\n"
+                     " [9, 10, 11],\n"
+                     " [1, 2, 3],\n"
+                     " [4, 5, 6]]");
+        CheckNdArray(Concatenate({m1, m3}, 1),
+                     "[[0, 1, 2, 1, 2],\n"
+                     " [3, 4, 5, 3, 4],\n"
+                     " [6, 7, 8, 5, 6],\n"
+                     " [9, 10, 11, 7, 8]]");
+        CHECK_THROWS(Concatenate({m1, m2}, -1));
+        CHECK_THROWS(Concatenate({m1, m2}, 1));
+        CHECK_THROWS(Concatenate({m1, m2}, 2));
+        CHECK_THROWS(Concatenate({m1, m3}, -1));
+        CHECK_THROWS(Concatenate({m1, m3}, 0));
+        CHECK_THROWS(Concatenate({m1, m3}, 2));
+
+        auto m4 = NdArray::Arange(12.f).reshape(4, 1, 3);
+        auto m5 = NdArray::Arange(6.f).reshape(2, 1, 3) + 1.f;
+        auto m6 = NdArray::Arange(8.f).reshape(4, 1, 2) + 1.f;
+        CheckNdArray(Concatenate({m4, m5}, 0),
+                     "[[[0, 1, 2]],\n"
+                     " [[3, 4, 5]],\n"
+                     " [[6, 7, 8]],\n"
+                     " [[9, 10, 11]],\n"
+                     " [[1, 2, 3]],\n"
+                     " [[4, 5, 6]]]");
+        CheckNdArray(Concatenate({m4, m6}, 2),
+                     "[[[0, 1, 2, 1, 2]],\n"
+                     " [[3, 4, 5, 3, 4]],\n"
+                     " [[6, 7, 8, 5, 6]],\n"
+                     " [[9, 10, 11, 7, 8]]]");
+        CHECK_THROWS(Concatenate({m4, m5}, -1));
+        CHECK_THROWS(Concatenate({m4, m5}, 1));
+        CHECK_THROWS(Concatenate({m4, m5}, 2));
+        CHECK_THROWS(Concatenate({m4, m6}, -1));
+        CHECK_THROWS(Concatenate({m4, m6}, 0));
+        CHECK_THROWS(Concatenate({m4, m6}, 1));
     }
 
     SECTION("Function Inverse (2d)") {

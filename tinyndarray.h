@@ -425,6 +425,7 @@ NdArray Reshape(const NdArray& x, const Shape& shape);
 NdArray Squeeze(const NdArray& x);
 // Grouping functions
 NdArray Stack(const std::vector<NdArray>& xs, int axis = 0);
+NdArray Concatenate(const std::vector<NdArray>& xs, int axis = 0);
 std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis = 0);
 // Inverse
 NdArray Inv(const NdArray& x);
@@ -1639,7 +1640,7 @@ static Shape CheckStackable(const std::vector<NdArray>& xs, int axis) {
     }
     // Check axis
     if (axis < 0 || static_cast<int>(xs.size()) < axis) {
-        throw std::runtime_error("Out of bounds for dimension (Stack)");
+        throw std::runtime_error("Out of bounds for dimension to stack");
     }
     return shape;
 }
@@ -1707,6 +1708,132 @@ static NdArray StackNdArray(const std::vector<NdArray>& xs, int axis) {
 
     return ret;
 }
+
+// -------------------- Utilities for NdArray (Concatenate) --------------------
+static void CheckConcatenatable(const std::vector<NdArray>& xs, int axis) {
+    // Check empty
+    if (xs.empty()) {
+        throw std::runtime_error("Need at least one array to concatenate");
+    }
+    // Check same shape except axis dimension
+    const Shape& fst_shape = xs[0].shape();
+    const size_t axis_l = static_cast<size_t>(axis);
+    const std::string error_msg = "all the input array dimensions except for "
+                                  "the concatenation axis must match exactly";
+    for (size_t i = 1; i < xs.size(); i++) {
+        const Shape& cur_shape = xs[i].shape();
+        // Check the size of shapes
+        if (fst_shape.size() != cur_shape.size()) {
+            throw std::runtime_error(error_msg);
+        }
+        // Check dimensions except axis
+        for (size_t i = 0; i < fst_shape.size(); i++) {
+            if (i == axis_l) {
+                continue;
+            }
+            if (fst_shape[i] != cur_shape[i]) {
+                throw std::runtime_error(error_msg);
+            }
+        }
+    }
+    // Check axis
+    if (axis < 0 || static_cast<int>(fst_shape.size()) <= axis) {
+        throw std::runtime_error("Out of bounds for dimension to concatenate");
+    }
+}
+
+static auto ComputeConcatSizes(const std::vector<NdArray>& xs, int axis) {
+    const Shape& fst_shape = xs[0].shape();
+    const auto& src_s_iter0 = fst_shape.begin();
+    const auto& src_s_iter1 = fst_shape.begin() + axis;
+    const auto& src_s_iter2 = fst_shape.begin() + axis + 1;
+    const auto& src_s_iter3 = fst_shape.end();
+    const auto& mul = std::multiplies<int>();
+
+    // Upper common size
+    const int n_upper = std::accumulate(src_s_iter0, src_s_iter1, 1, mul);
+    // Lower size depends on each sources
+    std::vector<int> n_lowers;
+    for (auto&& x : xs) {
+        n_lowers.push_back(static_cast<int>(x.size()) / n_upper);
+    }
+    // Result indices of concatenation
+    std::vector<int> concat_offsets;
+    int n_lower_accum = 0;
+    for (auto&& n_lower : n_lowers) {
+        concat_offsets.push_back(n_lower_accum);
+        n_lower_accum += n_lower;
+    }
+    // Step of concatenating dimension
+    const int concat_step = n_lower_accum;
+
+    // Concatenating dimensions
+    int concat_dim = 0;
+    const size_t axis_l = static_cast<size_t>(axis);
+    for (auto&& x : xs) {
+        concat_dim += x.shape()[axis_l];
+    }
+
+    // Create result shape
+    Shape ret_shape;
+    ret_shape.insert(ret_shape.end(), src_s_iter0, src_s_iter1);  // Upper
+    ret_shape.push_back(concat_dim);  // Concatenating dimension
+    ret_shape.insert(ret_shape.end(), src_s_iter2, src_s_iter3);  // Lower
+
+    return std::make_tuple(std::move(ret_shape), n_upper, std::move(n_lowers),
+                           xs.size(), std::move(concat_offsets), concat_step);
+}
+
+static NdArray ConcatenateNdArray(const std::vector<NdArray>& xs, int axis) {
+    // Check it is possible to concatenate
+    CheckConcatenatable(xs, axis);
+
+    // Compute concat sizes
+    auto concat_sizes = ComputeConcatSizes(xs, axis);
+    const Shape& ret_shape = std::get<0>(concat_sizes);
+    const int n_upper = std::get<1>(concat_sizes);
+    const std::vector<int>& n_lowers = std::get<2>(concat_sizes);
+    const size_t n_concat = std::get<3>(concat_sizes);
+    const std::vector<int>& concat_offsets = std::get<4>(concat_sizes);
+    const int concat_step = std::get<5>(concat_sizes);
+
+    // Create result array
+    NdArray ret(ret_shape);
+    auto ret_data = ret.data();
+
+    // Core function to copy
+    auto copy_lower_func = [&](const size_t concat_idx, const int ret_idx_base0,
+                               const int src_idx_base) {
+        const int ret_idx_base1 = ret_idx_base0 + concat_offsets[concat_idx];
+        auto src_data = xs[concat_idx].data();
+        for (int l_idx = 0; l_idx < n_lowers[concat_idx]; l_idx++) {
+            ret_data[ret_idx_base1 + l_idx] = src_data[src_idx_base + l_idx];
+        }
+    };
+
+    // Switch by upper size
+    if (n_upper == 1) {
+        // Run in parallel of stack direction
+        RunParallel(static_cast<int>(n_concat), [&](int concat_idx) {
+            copy_lower_func(static_cast<size_t>(concat_idx), 0, 0);
+        });
+    } else {
+        // Run in parallel of high dimension's direction
+        RunParallel(n_upper, [&](int u_idx) {
+            const int ret_idx_base0 = u_idx * concat_step;
+            for (size_t concat_idx = 0; concat_idx < n_concat; concat_idx++) {
+                const int src_idx_base = u_idx * n_lowers[concat_idx];
+                copy_lower_func(concat_idx, ret_idx_base0, src_idx_base);
+            }
+        });
+    }
+
+    return ret;
+}
+
+// ----------------------- Utilities for NdArray (Split) -----------------------
+// std::vector<NdArray> SplitNdArray(const NdArray& xs, const Index& idxs,
+//                                   int axis) {}
 
 // ---------------------- Utilities for NdArray (Inverse) ----------------------
 static int CheckInversable(const Shape& shape) {
@@ -3347,6 +3474,10 @@ NdArray Squeeze(const NdArray& x) {
 // Grouping functions
 NdArray Stack(const std::vector<NdArray>& xs, int axis) {
     return StackNdArray(xs, axis);
+}
+
+NdArray Concatenate(const std::vector<NdArray>& xs, int axis) {
+    return ConcatenateNdArray(xs, axis);
 }
 
 // std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis) {
