@@ -1550,6 +1550,73 @@ TEST_CASE("NdArray") {
         CHECK_THROWS(Concatenate({m4, m6}, 1));
     }
 
+    SECTION("Function Split by indices") {
+        auto m1 = NdArray::Arange(16.f).reshape(2, 4, 2);
+
+        auto r0 = Split(m1, {1, 1}, 1);
+        CHECK(r0.size() == 3);
+        CheckNdArray(r0[0],
+                     "[[[0, 1]],\n"
+                     " [[8, 9]]]");
+        CheckNdArray(r0[1], "[]");
+        CheckNdArray(r0[2],
+                     "[[[2, 3],\n"
+                     "  [4, 5],\n"
+                     "  [6, 7]],\n"
+                     " [[10, 11],\n"
+                     "  [12, 13],\n"
+                     "  [14, 15]]]");
+
+        auto r1 = Split(m1, {2, 0}, 1);
+        CHECK(r1.size() == 3);
+        CheckNdArray(r1[0],
+                     "[[[0, 1],\n"
+                     "  [2, 3]],\n"
+                     " [[8, 9],\n"
+                     "  [10, 11]]]");
+        CheckNdArray(r1[1], "[]");
+        CheckNdArray(r1[2],
+                     "[[[0, 1],\n"
+                     "  [2, 3],\n"
+                     "  [4, 5],\n"
+                     "  [6, 7]],\n"
+                     " [[8, 9],\n"
+                     "  [10, 11],\n"
+                     "  [12, 13],\n"
+                     "  [14, 15]]]");
+
+        auto r2 = Split(m1, {0, 2, 3}, 1);
+        CHECK(r2.size() == 4);
+        CheckNdArray(r2[0], "[]");
+        CheckNdArray(r2[1],
+                     "[[[0, 1],\n"
+                     "  [2, 3]],\n"
+                     " [[8, 9],\n"
+                     "  [10, 11]]]");
+        CheckNdArray(r2[2],
+                     "[[[4, 5]],\n"
+                     " [[12, 13]]]");
+        CheckNdArray(r2[3],
+                     "[[[6, 7]],\n"
+                     " [[14, 15]]]");
+
+        auto r3 = Split(m1, {2, 4}, 1);
+        CHECK(r3.size() == 3);
+        CheckNdArray(r3[0],
+                     "[[[0, 1],\n"
+                     "  [2, 3]],\n"
+                     " [[8, 9],\n"
+                     "  [10, 11]]]");
+
+        CheckNdArray(r3[1],
+                     "[[[4, 5],\n"
+                     "  [6, 7]],\n"
+                     " [[12, 13],\n"
+                     "  [14, 15]]]");
+
+        CheckNdArray(r3[2], "[]");
+    }
+
     SECTION("Function Inverse (2d)") {
         auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
         auto m2 = Inv(m1);

@@ -426,7 +426,8 @@ NdArray Squeeze(const NdArray& x);
 // Grouping functions
 NdArray Stack(const std::vector<NdArray>& xs, int axis = 0);
 NdArray Concatenate(const std::vector<NdArray>& xs, int axis = 0);
-std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis = 0);
+std::vector<NdArray> Split(const NdArray& x, int n_section, int axis = 0);
+std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis = 0);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -1832,8 +1833,85 @@ static NdArray ConcatenateNdArray(const std::vector<NdArray>& xs, int axis) {
 }
 
 // ----------------------- Utilities for NdArray (Split) -----------------------
-// std::vector<NdArray> SplitNdArray(const NdArray& xs, const Index& idxs,
-//                                   int axis) {}
+static void CheckSplitAxis(const NdArray& x, int axis) {
+    if (axis < 0 || static_cast<int>(x.shape().size()) <= axis) {
+        throw std::runtime_error("Invalid axis to split");
+    }
+}
+
+static std::vector<Shape> CreateSplittedShapes(const Shape& x_shape,
+                                               const Index& idxs, size_t axis) {
+    std::vector<Shape> ret_shapes;
+
+    const int idx_end = static_cast<int>(x_shape[axis]);
+    Shape tmp_shape = x_shape;
+
+    int prev_idx = 0;
+    for (auto&& cur_idx_raw: idxs) {
+        // Upper limit of index
+        const int cur_idx = std::min(cur_idx_raw, idx_end);
+        // Create one of result shape
+        tmp_shape[axis] = std::max(cur_idx - prev_idx, 0);  // Escape negative
+        // Register
+        ret_shapes.push_back(tmp_shape);
+        prev_idx = cur_idx;
+    }
+
+    // Rest
+    tmp_shape[axis] = std::max(idx_end - prev_idx, 0);  // Escape negative
+    ret_shapes.push_back(tmp_shape);
+
+    return ret_shapes;
+}
+
+static std::vector<NdArray> SplitNdArrayImpl(const NdArray& x,
+                                             const Index& idxs, int axis) {
+    // Note: Axis must be checked previously.
+
+    // Create result shapes
+    const std::vector<Shape>& ret_shapes =
+        CreateSplittedShapes(x.shape(), idxs, static_cast<size_t>(axis));
+
+    // Create result arrays
+    std::vector<NdArray> rets;
+    for (auto&& ret_shape : ret_shapes) {
+        rets.push_back(NdArray(ret_shape));
+    }
+
+    // TODO: copy
+
+    return rets;
+}
+
+static std::vector<NdArray> SplitNdArray(const NdArray& x, int n_section,
+                                         int axis) {
+    // Check split axis
+    CheckSplitAxis(x, axis);
+    // Check splitting size
+    const int dim_size = x.shape()[static_cast<size_t>(axis)];
+    if (dim_size % n_section != 0) {
+        throw std::runtime_error("Invalid section number in an equal division");
+    }
+    const int section_size = dim_size / n_section;
+
+    // Create splitting indices
+    Index idxs;
+    idxs.reserve(static_cast<size_t>(n_section));
+    for (int sec_i = 0; sec_i < n_section; sec_i++) {
+        idxs.push_back(section_size * sec_i);
+    }
+
+    // Split by indices
+    return SplitNdArrayImpl(x, idxs, axis);
+}
+
+static std::vector<NdArray> SplitNdArray(const NdArray& x, const Index& idxs,
+                                         int axis) {
+    // Check split axis
+    CheckSplitAxis(x, axis);
+    // Split by indices
+    return SplitNdArrayImpl(x, idxs, axis);
+}
 
 // ---------------------- Utilities for NdArray (Inverse) ----------------------
 static int CheckInversable(const Shape& shape) {
@@ -3480,8 +3558,13 @@ NdArray Concatenate(const std::vector<NdArray>& xs, int axis) {
     return ConcatenateNdArray(xs, axis);
 }
 
-// std::vector<NdArray> Split(const NdArray& xs, const Index& idxs, int axis) {
-// }
+std::vector<NdArray> Split(const NdArray& x, int n_section, int axis) {
+    return SplitNdArray(x, n_section, axis);
+}
+
+std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis) {
+    return SplitNdArray(x, idxs, axis);
+}
 
 // Inverse
 NdArray Inv(const NdArray& x) {
