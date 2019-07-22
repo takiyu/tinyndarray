@@ -764,6 +764,7 @@ NdArray CreateRandomArray(const Shape& shape, D&& dist, R&& rand_engine) {
 static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& dst_data,
                           const Shape& src_shape, const SliceIndex& slice_index,
                           const std::vector<int>& child_sizes, size_t depth) {
+    // TODO: Replace recursive call with loop
     if (depth < src_shape.size()) {
         const auto& si = slice_index[depth];
         // Add previous offset
@@ -1839,46 +1840,38 @@ static void CheckSplitAxis(const NdArray& x, int axis) {
     }
 }
 
-static std::vector<Shape> CreateSplittedShapes(const Shape& x_shape,
-                                               const Index& idxs, size_t axis) {
-    std::vector<Shape> ret_shapes;
-
-    const int idx_end = static_cast<int>(x_shape[axis]);
-    Shape tmp_shape = x_shape;
-
-    int prev_idx = 0;
-    for (auto&& cur_idx_raw: idxs) {
-        // Upper limit of index
-        const int cur_idx = std::min(cur_idx_raw, idx_end);
-        // Create one of result shape
-        tmp_shape[axis] = std::max(cur_idx - prev_idx, 0);  // Escape negative
-        // Register
-        ret_shapes.push_back(tmp_shape);
-        prev_idx = cur_idx;
-    }
-
-    // Rest
-    tmp_shape[axis] = std::max(idx_end - prev_idx, 0);  // Escape negative
-    ret_shapes.push_back(tmp_shape);
-
-    return ret_shapes;
-}
-
 static std::vector<NdArray> SplitNdArrayImpl(const NdArray& x,
                                              const Index& idxs, int axis) {
     // Note: Axis must be checked previously.
 
-    // Create result shapes
-    const std::vector<Shape>& ret_shapes =
-        CreateSplittedShapes(x.shape(), idxs, static_cast<size_t>(axis));
+    const size_t axis_l = static_cast<size_t>(axis);
+    const Shape& x_shape = x.shape();
+    const int idx_end = static_cast<int>(x_shape[axis_l]);
 
-    // Create result arrays
-    std::vector<NdArray> rets;
-    for (auto&& ret_shape : ret_shapes) {
-        rets.push_back(NdArray(ret_shape));
+    // Create base of slice index
+    SliceIndex slice_idx;
+    for (auto&& dim : x_shape) {
+        slice_idx.push_back({0, dim});
     }
 
-    // TODO: copy
+    // Result arrays
+    std::vector<NdArray> rets;
+
+    // Resolve for each index
+    int prev_idx = 0;
+    for (auto&& curr_idx_raw : idxs) {
+        // Upper limit of index
+        const int curr_idx = std::min(curr_idx_raw, idx_end);
+        // Create one of slice index
+        slice_idx[axis_l] = std::make_pair(prev_idx, curr_idx);  // Overwrite
+        rets.push_back(x.slice(slice_idx));  // Register slice
+        // Go to next index
+        prev_idx = curr_idx;
+    }
+
+    // Rest of index
+    slice_idx[axis_l] = std::make_pair(prev_idx, idx_end);  // Overwrite
+    rets.push_back(x.slice(slice_idx));                     // Register slice
 
     return rets;
 }
@@ -1896,8 +1889,7 @@ static std::vector<NdArray> SplitNdArray(const NdArray& x, int n_section,
 
     // Create splitting indices
     Index idxs;
-    idxs.reserve(static_cast<size_t>(n_section));
-    for (int sec_i = 0; sec_i < n_section; sec_i++) {
+    for (int sec_i = 1; sec_i < n_section; sec_i++) {  // no first one
         idxs.push_back(section_size * sec_i);
     }
 
@@ -2598,10 +2590,10 @@ NdArray NdArray::slice(const SliceIndex& slice_index) const {
             int s = (0 <= si.first) ? si.first : shape[i] + si.first;
             int e = (0 <= si.second) ? si.second : shape[i] + si.second;
             // Clamp
-            s = Clamp(s, 0, shape[i] - 1);  // Start must be in range.
-            e = Clamp(e, 0, shape[i]);      // End can be next of the last.
+            s = Clamp(s, 0, shape[i]);  // must be next of the last.
+            e = Clamp(e, 0, shape[i]);
             // Register
-            slice_shape.push_back(e - s);
+            slice_shape.push_back(std::max(e - s, 0));  // Escape negative
             new_index.push_back({s, e});
         }
     }

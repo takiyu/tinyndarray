@@ -1617,6 +1617,58 @@ TEST_CASE("NdArray") {
         CheckNdArray(r3[2], "[]");
     }
 
+    SECTION("Function Split by n_section") {
+        auto m1 = NdArray::Arange(16.f).reshape(2, 4, 2);
+        auto r0 = Split(m1, 2, 1);
+        CHECK(r0.size() == 2);
+        CheckNdArray(r0[0],
+                     "[[[0, 1],\n"
+                     "  [2, 3]],\n"
+                     " [[8, 9],\n"
+                     "  [10, 11]]]");
+        CheckNdArray(r0[1],
+                     "[[[4, 5],\n"
+                     "  [6, 7]],\n"
+                     " [[12, 13],\n"
+                     "  [14, 15]]]");
+
+        auto r1 = Split(m1, 4, 1);
+        CHECK(r1.size() == 4);
+        CheckNdArray(r1[0],
+                     "[[[0, 1]],\n"
+                     " [[8, 9]]]");
+        CheckNdArray(r1[1],
+                     "[[[2, 3]],\n"
+                     " [[10, 11]]]");
+        CheckNdArray(r1[2],
+                     "[[[4, 5]],\n"
+                     " [[12, 13]]]");
+        CheckNdArray(r1[3],
+                     "[[[6, 7]],\n"
+                     " [[14, 15]]]");
+
+        auto r2 = Split(m1, 2, 2);
+        CHECK(r2.size() == 2);
+        CheckNdArray(r2[0],
+                     "[[[0],\n"
+                     "  [2],\n"
+                     "  [4],\n"
+                     "  [6]],\n"
+                     " [[8],\n"
+                     "  [10],\n"
+                     "  [12],\n"
+                     "  [14]]]");
+        CheckNdArray(r2[1],
+                     "[[[1],\n"
+                     "  [3],\n"
+                     "  [5],\n"
+                     "  [7]],\n"
+                     " [[9],\n"
+                     "  [11],\n"
+                     "  [13],\n"
+                     "  [15]]]");
+    }
+
     SECTION("Function Inverse (2d)") {
         auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
         auto m2 = Inv(m1);
