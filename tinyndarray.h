@@ -761,42 +761,75 @@ NdArray CreateRandomArray(const Shape& shape, D&& dist, R&& rand_engine) {
 }
 
 // ----------------------- Utilities for NdArray (Slice) -----------------------
-static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& dst_data,
-                          const Shape& src_shape, const SliceIndex& slice_index,
-                          const std::vector<int>& child_sizes, size_t depth) {
-    // TODO: Replace recursive call with loop
-    if (depth < src_shape.size()) {
-        const auto& si = slice_index[depth];
-        // Add previous offset
-        src_data += child_sizes[depth] * si.first;
-        // Copy
-        for (int i = si.first; i < si.second; i++) {
-            // Recursive call
-            CopySliceImpl(src_data, dst_data, src_shape, slice_index,
-                          child_sizes, depth + 1);
+static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& ret_data,
+                          const Shape& slice_shape, const int ret_size,
+                          const std::vector<int>& prev_offsets,
+                          const std::vector<int>& post_offsets) {
+    // TODO: Make parallel
+    const size_t n_depth = slice_shape.size();
+    // Create stacks and counter
+    std::vector<int> ret_cnts(n_depth);
+    size_t depth = 0;
+    int src_idx = 0;
+
+    for (int ret_idx = 0; ret_idx < ret_size; ret_idx++) {
+        // Go down
+        for (; depth < n_depth; depth++) {
+            src_idx += prev_offsets[depth];  // Forward prev offset
         }
-        // Add post offset
-        src_data += child_sizes[depth] * (src_shape[depth] - si.second);
-    } else {
-        // Copy
-        *(dst_data++) = *(src_data++);
+
+        // Operate
+        ret_data[ret_idx] = src_data[src_idx];
+        src_idx += 1;  // Forward normally
+
+        // Go up and count
+        for (; 0 < depth; depth--) {
+            const size_t prev_d = depth - 1;
+            ret_cnts[prev_d]++;  // Count up
+            if (ret_cnts[prev_d] < slice_shape[prev_d]) {
+                break;  // Continue normally
+            }
+            // Go upper depth
+            ret_cnts[prev_d] = 0;             // Clear count
+            src_idx += post_offsets[prev_d];  // Forward post offset
+        }
     }
+}
+
+template <bool IsPrev>
+std::vector<int> ComputeSliceOffset(const std::vector<int>& child_sizes,
+                                    const SliceIndex& slice_index,
+                                    const Shape& src_shape) {
+    std::vector<int> offsets;
+    offsets.reserve(child_sizes.size());
+    for (size_t depth = 0; depth < child_sizes.size(); depth++) {
+        const auto& si = slice_index[depth];
+        const int len = (IsPrev ? si.first : src_shape[depth] - si.second);
+        offsets.push_back(child_sizes[depth] * len);
+    }
+    return offsets;
 }
 
 static NdArray CopySlice(const NdArray& src, const Shape& slice_shape,
                          const SliceIndex& slice_index) {
     const Shape& src_shape = src.shape();
 
-    // Pre-compute child sizes (index offsets)
+    // Pre-compute child sizes
     const std::vector<int>& child_sizes = ComputeChildSizes(src_shape);
+    // Pre-compute offsets
+    const std::vector<int>& prev_offsets =
+            ComputeSliceOffset<true>(child_sizes, slice_index, src_shape);
+    const std::vector<int>& post_offsets =
+            ComputeSliceOffset<false>(child_sizes, slice_index, src_shape);
 
     // Create slice instance
     NdArray ret(slice_shape);
 
     // Start to copy
     auto&& src_data = src.data();
-    auto&& dst_data = ret.data();
-    CopySliceImpl(src_data, dst_data, src_shape, slice_index, child_sizes, 0);
+    auto&& ret_data = ret.data();
+    CopySliceImpl(src_data, ret_data, slice_shape, static_cast<int>(ret.size()),
+                  prev_offsets, post_offsets);
 
     return ret;
 }

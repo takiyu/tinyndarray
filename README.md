@@ -457,7 +457,8 @@ The following methods can be used to get the number of instances and the size of
 
 * [x] Replace axis reduction function with more effective algorithm.
    * [ ] Implement more effective algorithm.
-* [ ] Replace slice method's recursive call with loop for speed up.
+* [x] Replace slice method's recursive call with loop for speed up.
+   * [ ] Make parallel
 * [ ] Improve inverse function with LU decomposition.
 * [ ] Implement reference slice which dose not effect the current performance.
 * [ ] Introduce SIMD instructions.
