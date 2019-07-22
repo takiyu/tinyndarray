@@ -313,6 +313,15 @@ Functions which takes two arguments support broadcast.
 | ```a.max(axis=0)```                                      | ```a.max({0})```                                         |
 | ```a.mean(axis=0)```                                     | ```a.mean({0})```                                        |
 
+### Grouping Method
+
+| **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
+|:--------------------------------------------------------:|:--------------------------------------------------------:|
+| ```np.stack((a, b, ...), axis=0)```                      | ```Stack({a, b, ...}, 0)```                              |
+| ```np.concatenate((a, b, ...), axis=0)```                | ```Concatenate({a, b, ...}, 0)```                        |
+| ```np.split(a, 2, axis=0)```                             | ```Split(a, 2, 0)```                                     |
+| ```np.split(a, [1, 3], axis=0)```                        | ```Split(a, {1, 3}, 0)```                                |
+
 ### Matrix Products
 
 All dimension rules of numpy are implemented.
@@ -448,6 +457,7 @@ The following methods can be used to get the number of instances and the size of
 
 * [x] Replace axis reduction function with more effective algorithm.
    * [ ] Implement more effective algorithm.
+* [ ] Replace slice method's recursive call with loop for speed up.
 * [ ] Improve inverse function with LU decomposition.
 * [ ] Implement reference slice which dose not effect the current performance.
 * [ ] Introduce SIMD instructions.
