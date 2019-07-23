@@ -761,39 +761,46 @@ NdArray CreateRandomArray(const Shape& shape, D&& dist, R&& rand_engine) {
 }
 
 // ----------------------- Utilities for NdArray (Slice) -----------------------
-static void CopySliceImpl(NdArray::ConstIter& src_data, NdArray::Iter& ret_data,
-                          const Shape& slice_shape, const int ret_size,
+static void CopySliceImpl(const NdArray::ConstIter& src_data,
+                          const NdArray::Iter& ret_data, const Shape& ret_shape,
                           const std::vector<int>& prev_offsets,
-                          const std::vector<int>& post_offsets) {
-    // TODO: Make parallel
-    const size_t n_depth = slice_shape.size();
-    // Create stacks and counter
-    std::vector<int> ret_cnts(n_depth);
-    size_t depth = 0;
-    int src_idx = 0;
+                          const std::vector<int>& post_offsets,
+                          const int src_step_top, const int ret_step_top) {
+    const size_t n_depth = ret_shape.size();
 
-    for (int ret_idx = 0; ret_idx < ret_size; ret_idx++) {
-        // Go down
-        for (; depth < n_depth; depth++) {
-            src_idx += prev_offsets[depth];  // Forward prev offset
-        }
+    // Run in parallel (Only top level)
+    RunParallel(ret_shape[0], [&](int ret_top) {
+        const int ret_idx_base = ret_top * ret_step_top;
+        const int src_idx_base = ret_top * src_step_top + prev_offsets[0];
 
-        // Operate
-        ret_data[ret_idx] = src_data[src_idx];
-        src_idx += 1;  // Forward normally
+        // Create stacks and counter
+        std::vector<int> ret_cnts(n_depth);
+        size_t depth = 1;  // Start from 1
+        int src_idx = 0;
 
-        // Go up and count
-        for (; 0 < depth; depth--) {
-            const size_t prev_d = depth - 1;
-            ret_cnts[prev_d]++;  // Count up
-            if (ret_cnts[prev_d] < slice_shape[prev_d]) {
-                break;  // Continue normally
+        for (int ret_idx = 0; ret_idx < ret_step_top; ret_idx++) {
+            // Go down
+            for (; depth < n_depth; depth++) {
+                src_idx += prev_offsets[depth];  // Forward prev offset
             }
-            // Go upper depth
-            ret_cnts[prev_d] = 0;             // Clear count
-            src_idx += post_offsets[prev_d];  // Forward post offset
+
+            // Operate
+            ret_data[ret_idx_base + ret_idx] = src_data[src_idx_base + src_idx];
+            src_idx += 1;  // Forward normally
+
+            // Go up and count (Down to 1)
+            for (; 1 < depth; depth--) {
+                const size_t prev_d = depth - 1;
+                ret_cnts[prev_d]++;  // Count up
+                if (ret_cnts[prev_d] < ret_shape[prev_d]) {
+                    break;  // Continue normally
+                }
+                // Go upper depth
+                ret_cnts[prev_d] = 0;             // Clear count
+                src_idx += post_offsets[prev_d];  // Forward post offset
+            }
         }
-    }
+    });
 }
 
 template <bool IsPrev>
@@ -810,7 +817,7 @@ std::vector<int> ComputeSliceOffset(const std::vector<int>& child_sizes,
     return offsets;
 }
 
-static NdArray CopySlice(const NdArray& src, const Shape& slice_shape,
+static NdArray CopySlice(const NdArray& src, const Shape& ret_shape,
                          const SliceIndex& slice_index) {
     const Shape& src_shape = src.shape();
 
@@ -822,14 +829,19 @@ static NdArray CopySlice(const NdArray& src, const Shape& slice_shape,
     const std::vector<int>& post_offsets =
             ComputeSliceOffset<false>(child_sizes, slice_index, src_shape);
 
+    // Pre-compute top steps for parallel
+    const int ret_step_top = std::accumulate(
+            ret_shape.begin() + 1, ret_shape.end(), 1, std::multiplies<int>());
+    const int src_step_top = child_sizes[0];
+
     // Create slice instance
-    NdArray ret(slice_shape);
+    NdArray ret(ret_shape);
 
     // Start to copy
     auto&& src_data = src.data();
     auto&& ret_data = ret.data();
-    CopySliceImpl(src_data, ret_data, slice_shape, static_cast<int>(ret.size()),
-                  prev_offsets, post_offsets);
+    CopySliceImpl(src_data, ret_data, ret_shape, prev_offsets, post_offsets,
+                  src_step_top, ret_step_top);
 
     return ret;
 }
