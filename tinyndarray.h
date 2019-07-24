@@ -2511,8 +2511,10 @@ void NdArray::resize(const Shape& shape) {
         Copy(ret.begin(), begin(), src_size);
         FillN(ret.begin() + src_size, ret_size - src_size, 0.f);
     }
-    // Set
-    m_sub = ret.m_sub;
+    // Set (Keep instance of substance)
+    m_sub->size = ret.m_sub->size;
+    m_sub->shape = ret.m_sub->shape;
+    m_sub->v = ret.m_sub->v;
 }
 
 // ----------------------------- Begin/End Methods -----------------------------
