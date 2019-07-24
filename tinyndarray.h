@@ -385,6 +385,7 @@ NdArray LessEqual(float lhs, const NdArray& rhs);
 NdArray Dot(const NdArray& lhs, const NdArray& rhs);
 NdArray Dot(const NdArray& lhs, float rhs);
 NdArray Dot(float lhs, const NdArray& rhs);
+NdArray Matmul(const NdArray& lhs, const NdArray& rhs);
 NdArray Cross(const NdArray& lhs, const NdArray& rhs);
 // Basic math operators
 NdArray Abs(const NdArray& x);
@@ -1630,6 +1631,39 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
     return ret;
 }
 
+static NdArray DotNdArray(const NdArray& lhs, const NdArray& rhs) {
+    const Shape& l_shape = lhs.shape();
+    const Shape& r_shape = rhs.shape();
+    if (lhs.size() == 0 || rhs.size() == 0) {
+        // Empty array
+        throw std::runtime_error("Dot product of empty array");
+    } else if (lhs.size() == 1) {
+        // Simple multiply (left)
+        return static_cast<float>(lhs) * rhs;
+    } else if (rhs.size() == 1) {
+        // Simple multiply (right)
+        return lhs * static_cast<float>(rhs);
+    } else if (l_shape.size() == 1 && r_shape.size() == 1) {
+        // Inner product of vector (1D, 1D)
+        return DotNdArray1d(lhs, rhs);
+    } else if (r_shape.size() == 1) {
+        // Broadcast right 1D array
+        const Shape shape(l_shape.begin(), l_shape.end() - 1);
+        return DotNdArrayNdMd(lhs, rhs.reshape(r_shape[0], 1)).reshape(shape);
+    } else {
+        // Basic matrix product
+        return DotNdArrayNdMd(lhs, rhs);
+    }
+}
+
+// ------------------- Utilities for NdArray (Mutmul product) ------------------
+NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs) {
+    const Shape& l_shape = lhs.shape();
+    const Shape& r_shape = rhs.shape();
+    throw std::runtime_error("Not implemented");
+    return {};
+}
+
 // ------------------- Utilities for NdArray (Cross product) -------------------
 static void CrossNdArray1d1dShape33(const NdArray::Iter& ret_data,
                                     const NdArray::ConstIter& l_data,
@@ -1676,6 +1710,52 @@ NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, F op) {
     NdArray ret(ret_shape);
     ApplyOpBroadcast<ret_step>(ret, lhs, rhs, 1, op);
     return ret;
+}
+
+static NdArray CrossNdArray(const NdArray& lhs, const NdArray& rhs) {
+    if (lhs.size() == 0 || rhs.size() == 0) {
+        // Empty array
+        throw std::runtime_error("Cross product of empty array");
+    }
+    const Shape& l_shape = lhs.shape();
+    const Shape& r_shape = rhs.shape();
+    const int l_back = l_shape.back();
+    const int r_back = r_shape.back();
+    if (l_shape.size() == 1 && r_shape.size() == 1) {
+        // 1D cross
+        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
+            NdArray ret({3});
+            CrossNdArray1d1dShape33(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        } else if (l_back == 3 && r_back == 2) {  // [3].cross([2]) -> [3]
+            NdArray ret({3});
+            CrossNdArray1d1dShape32(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        } else if (l_back == 2 && r_back == 3) {  // [2].cross([3]) -> [3]
+            NdArray ret({3});
+            CrossNdArray1d1dShape23(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
+            NdArray ret({1});
+            CrossNdArray1d1dShape22(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        }
+    } else {
+        // ND cross
+        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
+            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape33);
+        } else if (l_back == 3 && r_back == 2) {  // [2].cross([3]) -> [3]
+            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape32);
+        } else if (l_back == 2 && r_back == 3) {  // [3].cross([2]) -> [3]
+            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape23);
+        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
+            auto&& ret = CrossNdArrayNdMd<1>(lhs, rhs, CrossNdArray1d1dShape22);
+            const Shape& ret_shape = ret.shape();  // Remove last dim
+            return ret.reshape(Shape{ret_shape.begin(), ret_shape.end() - 1});
+        }
+    }
+    throw std::runtime_error("incompatible dimensions for cross product"
+                             " (dimension must be 2 or 3)");
 }
 
 // ----------------------- Utilities for NdArray (Stack) -----------------------
@@ -2680,30 +2760,7 @@ NdArray NdArray::slice(std::initializer_list<I>... slice_index) const {
 
 // --------------------------------- Dot Method --------------------------------
 NdArray NdArray::dot(const NdArray& other) const {
-    const NdArray& lhs = *this;
-    const NdArray& rhs = other;
-    const Shape& l_shape = lhs.shape();
-    const Shape& r_shape = rhs.shape();
-    if (lhs.size() == 0 || rhs.size() == 0) {
-        // Empty array
-        throw std::runtime_error("Dot product of empty array");
-    } else if (lhs.size() == 1) {
-        // Simple multiply (left)
-        return static_cast<float>(lhs) * rhs;
-    } else if (rhs.size() == 1) {
-        // Simple multiply (right)
-        return lhs * static_cast<float>(rhs);
-    } else if (l_shape.size() == 1 && r_shape.size() == 1) {
-        // Inner product of vector (1D, 1D)
-        return DotNdArray1d(lhs, rhs);
-    } else if (r_shape.size() == 1) {
-        // Broadcast right 1D array
-        const Shape shape(l_shape.begin(), l_shape.end() - 1);
-        return DotNdArrayNdMd(lhs, rhs.reshape(r_shape[0], 1)).reshape(shape);
-    } else {
-        // Basic matrix product
-        return DotNdArrayNdMd(lhs, rhs);
-    }
+    return DotNdArray(*this, other);
 }
 
 NdArray NdArray::dot(float other) const {
@@ -2713,51 +2770,7 @@ NdArray NdArray::dot(float other) const {
 
 // -------------------------------- Cross Method -------------------------------
 NdArray NdArray::cross(const NdArray& other) const {
-    const NdArray& lhs = *this;
-    const NdArray& rhs = other;
-    if (lhs.size() == 0 || rhs.size() == 0) {
-        // Empty array
-        throw std::runtime_error("Cross product of empty array");
-    }
-    const Shape& l_shape = lhs.shape();
-    const Shape& r_shape = rhs.shape();
-    const int l_back = l_shape.back();
-    const int r_back = r_shape.back();
-    if (l_shape.size() == 1 && r_shape.size() == 1) {
-        // 1D cross
-        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
-            NdArray ret({3});
-            CrossNdArray1d1dShape33(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        } else if (l_back == 3 && r_back == 2) {  // [3].cross([2]) -> [3]
-            NdArray ret({3});
-            CrossNdArray1d1dShape32(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        } else if (l_back == 2 && r_back == 3) {  // [2].cross([3]) -> [3]
-            NdArray ret({3});
-            CrossNdArray1d1dShape23(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
-            NdArray ret({1});
-            CrossNdArray1d1dShape22(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        }
-    } else {
-        // ND cross
-        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
-            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape33);
-        } else if (l_back == 3 && r_back == 2) {  // [2].cross([3]) -> [3]
-            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape32);
-        } else if (l_back == 2 && r_back == 3) {  // [3].cross([2]) -> [3]
-            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape23);
-        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
-            auto&& ret = CrossNdArrayNdMd<1>(lhs, rhs, CrossNdArray1d1dShape22);
-            const Shape& ret_shape = ret.shape();  // Remove last dim
-            return ret.reshape(Shape{ret_shape.begin(), ret_shape.end() - 1});
-        }
-    }
-    throw std::runtime_error("incompatible dimensions for cross product"
-                             " (dimension must be 2 or 3)");
+    return CrossNdArray(*this, other);
 }
 
 // -------------------------------- Axis Method --------------------------------
@@ -3452,6 +3465,10 @@ NdArray Dot(const NdArray& lhs, float rhs) {
 
 NdArray Dot(float lhs, const NdArray& rhs) {
     return lhs * rhs;  // Simple multiply
+}
+
+NdArray Matmul(const NdArray& lhs, const NdArray& rhs) {
+    return MatmulNdArray(lhs, rhs);
 }
 
 NdArray Cross(const NdArray& lhs, const NdArray& rhs) {
