@@ -121,6 +121,7 @@ public:
     ConstIter data() const;
     void fill(float v);
     NdArray copy() const;
+    void resize(const Shape& shape);
 
     Iter begin();
     Iter end();
@@ -640,6 +641,12 @@ template <typename Iter>
 void FillN(Iter&& iter, const int n, float v) {
     // Fill in parallel
     RunParallel(n, [&](int i) { iter[i] = v; });
+}
+
+template <typename RetIter, typename SrcIter>
+void Copy(RetIter&& ret_iter, SrcIter&& src_iter, const int n) {
+    // Copy in parallel
+    RunParallel(n, [&](int i) { ret_iter[i] = src_iter[i]; });
 }
 
 template <typename F>
@@ -2490,6 +2497,22 @@ NdArray NdArray::copy() const {
     // Copy array data
     ApplyOpSimple(ret, *this, [](const float& x) { return x; });
     return ret;
+}
+
+void NdArray::resize(const Shape& shape) {
+    NdArray ret(shape);
+    const int ret_size = static_cast<int>(ret.size());
+    const int src_size = static_cast<int>(size());
+    if (ret_size <= src_size) {
+        // Shrink
+        Copy(ret.begin(), begin(), ret_size);
+    } else {
+        // Extend
+        Copy(ret.begin(), begin(), src_size);
+        FillN(ret.begin() + src_size, ret_size - src_size, 0.f);
+    }
+    // Set
+    m_sub = ret.m_sub;
 }
 
 // ----------------------------- Begin/End Methods -----------------------------

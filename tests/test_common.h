@@ -233,6 +233,15 @@ TEST_CASE("NdArray") {
         CHECK(m1.flatten().id() != m1.id());  // Copy
         CHECK(m1.ravel().ndim() == 1);
         CHECK(m1.ravel().id() == m1.id());  // Same instance
+
+        m1.resize({2, 2});
+        CheckNdArray(m1,
+                     "[[0, 1],\n"
+                     " [2, 3]]");
+        m1.resize({2, 4});
+        CheckNdArray(m1,
+                     "[[0, 1, 2, 3],\n"
+                     " [0, 0, 0, 0]]");
     }
 
     // ------------------------------- Begin/End -------------------------------
