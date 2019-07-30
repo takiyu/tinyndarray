@@ -3717,6 +3717,10 @@ NdArray Squeeze(const NdArray& x) {
             ret_shape.push_back(s);
         }
     }
+    // Escape zero shape
+    if (ret_shape.empty()) {
+        ret_shape.push_back(1);
+    }
     return x.reshape(ret_shape);
 }
 
