@@ -1781,11 +1781,11 @@ static void CheckConcatenatable(const std::vector<NdArray>& xs, int axis) {
             throw std::runtime_error(error_msg);
         }
         // Check dimensions except axis
-        for (size_t i = 0; i < fst_shape.size(); i++) {
-            if (i == axis_l) {
+        for (size_t j = 0; j < fst_shape.size(); j++) {
+            if (j == axis_l) {
                 continue;
             }
-            if (fst_shape[i] != cur_shape[i]) {
+            if (fst_shape[j] != cur_shape[j]) {
                 throw std::runtime_error(error_msg);
             }
         }
