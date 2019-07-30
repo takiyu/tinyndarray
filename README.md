@@ -330,6 +330,7 @@ All dimension rules of numpy are implemented.
 |:--------------------------------------------------------:|:--------------------------------------------------------:|
 | ```np.dot(a, b)```                                       | ```Dot(a, b)```                                          |
 | ```a.dot(b)```                                           | ```a.dot(b)```                                           |
+| ```np.matmul(a, b)```                                    | ```Matmul(a, b)```                                       |
 | ```np.cross(a, b)```                                     | ```Cross(a, b)```                                        |
 | ```a.cross(b)```                                         | ```a.cross(b)```                                         |
 
