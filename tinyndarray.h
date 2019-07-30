@@ -385,6 +385,7 @@ NdArray LessEqual(float lhs, const NdArray& rhs);
 NdArray Dot(const NdArray& lhs, const NdArray& rhs);
 NdArray Dot(const NdArray& lhs, float rhs);
 NdArray Dot(float lhs, const NdArray& rhs);
+NdArray Matmul(const NdArray& lhs, const NdArray& rhs);
 NdArray Cross(const NdArray& lhs, const NdArray& rhs);
 // Basic math operators
 NdArray Abs(const NdArray& x);
@@ -869,7 +870,7 @@ static Shape CheckBroadcastable(const Shape& l_shape, const Shape& r_shape) {
     // `l_shape.size()` is maximum depth.
 
     // Check empty
-    if (r_shape.size() == 1 && r_shape[0] == 0) {
+    if (r_shape.size() == 0 || (r_shape.size() == 1 && r_shape[0] == 0)) {
         throw std::runtime_error("Broadcast of empty array");
     }
 
@@ -938,7 +939,7 @@ static size_t ReduceShapesBroadcast(Shape& ret_shape, Shape& l_shape,
         }
     }
     // Pop
-    if (size_pool != 1) {
+    if (size_pool != 1 || ret_shape_cleaned.size() == 0) {
         ret_shape_cleaned.push_back(size_pool);
         l_shape_cleaned.push_back(size_pool);
         r_shape_cleaned.push_back(size_pool);
@@ -958,7 +959,7 @@ static size_t ReduceShapesBroadcast(Shape& ret_shape, Shape& l_shape,
     return n_depth;
 }
 
-template <int ret_step, typename F>
+template <typename F>
 void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
                           const NdArray::ConstIter& l_data,
                           const NdArray::ConstIter& r_data,
@@ -966,7 +967,7 @@ void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
                           const std::vector<int>& l_steps,
                           const std::vector<int>& r_steps,
                           const size_t start_depth, const size_t n_depth,
-                          F op) {
+                          const int ret_step, F op) {
     // Create stacks and counter
     std::vector<int> ret_cnts(n_depth);
     std::vector<int> l_idx_stack(n_depth), r_idx_stack(n_depth);
@@ -1001,9 +1002,9 @@ void ApplyOpBroadcastImpl(const NdArray::Iter& ret_data,
     }
 }
 
-template <int ret_step, typename F>
+template <typename F>
 void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
-                      const size_t depth_offset, F op) {
+                      const size_t depth_offset, const int ret_step, F op) {
     Shape ret_shape = ret.shape();
 
     // Pre-compute padded shapes
@@ -1035,15 +1036,15 @@ void ApplyOpBroadcast(NdArray& ret, const NdArray& lhs, const NdArray& rhs,
 #if 1  // Run in parallel
     RunParallel(ret_shape[0], [&](int i) {
         const int ret_size = static_cast<int>(ret.size()) / ret_shape[0];
-        ApplyOpBroadcastImpl<ret_step>(
-                ret.data() + ret_child_sizes[0] * i,
-                lhs.data() + l_steps[0] * i, rhs.data() + r_steps[0] * i,
-                ret_shape, ret_size, l_steps, r_steps, 1, n_depth, op);
+        ApplyOpBroadcastImpl(ret.data() + ret_child_sizes[0] * i,
+                             lhs.data() + l_steps[0] * i,
+                             rhs.data() + r_steps[0] * i, ret_shape, ret_size,
+                             l_steps, r_steps, 1, n_depth, ret_step, op);
     });
 #else  // Run sequentially
-    ApplyOpBroadcastImpl<ret_step>(ret.data(), lhs.data(), rhs.data(),
-                                   ret_shape, static_cast<int>(ret.size()),
-                                   l_steps, r_steps, 0, n_depth, op);
+    ApplyOpBroadcastImpl(ret.data(), lhs.data(), rhs.data(), ret_shape,
+                         static_cast<int>(ret.size()), l_steps, r_steps, 0,
+                         n_depth, ret_step, op);
 #endif
 }
 
@@ -1083,7 +1084,7 @@ NdArray ApplyDualOp(const NdArray& lhs, const NdArray& rhs, F op) {
         const Shape& ret_shape = CheckBroadcastable(lhs.shape(), rhs.shape());
         // Apply broadcast
         NdArray ret(ret_shape);
-        ApplyOpBroadcast<1>(ret, lhs, rhs, 0, WrapOpForIter(op));
+        ApplyOpBroadcast(ret, lhs, rhs, 0, 1, WrapOpForIter(op));
         return ret;
     }
 }
@@ -1123,7 +1124,7 @@ NdArray ApplyDualOpInplace(NdArray&& lhs, NdArray&& rhs, F op,
                                                 "Invalid shape for in-place"
                                                 " operation");
         // Apply broadcast
-        ApplyOpBroadcast<1>(ret, lhs, rhs, 0, WrapOpForIter(op));
+        ApplyOpBroadcast(ret, lhs, rhs, 0, 1, WrapOpForIter(op));
         return std::move(ret);
     }
 }
@@ -1145,7 +1146,7 @@ NdArray ApplyDualOpInplace(NdArray&& lhs, const NdArray& rhs, F op,
                                 throw std::runtime_error(
                                         "Invalid shape for in-place operation");
         // Apply broadcast (result matrix is lhs)
-        ApplyOpBroadcast<1>(ret, lhs, rhs, 0, WrapOpForIter(op));
+        ApplyOpBroadcast(ret, lhs, rhs, 0, 1, WrapOpForIter(op));
         return std::move(ret);
     }
 }
@@ -1630,6 +1631,130 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
     return ret;
 }
 
+static NdArray DotNdArray(const NdArray& lhs, const NdArray& rhs) {
+    const Shape& l_shape = lhs.shape();
+    const Shape& r_shape = rhs.shape();
+    if (lhs.size() == 0 || rhs.size() == 0) {
+        // Empty array
+        throw std::runtime_error("Dot product of empty array");
+    } else if (lhs.size() == 1) {
+        // Simple multiply (left)
+        return static_cast<float>(lhs) * rhs;
+    } else if (rhs.size() == 1) {
+        // Simple multiply (right)
+        return lhs * static_cast<float>(rhs);
+    } else if (l_shape.size() == 1 && r_shape.size() == 1) {
+        // Inner product of vector (1D, 1D)
+        return DotNdArray1d(lhs, rhs);
+    } else if (r_shape.size() == 1) {
+        // Broadcast right 1D array
+        const Shape shape(l_shape.begin(), l_shape.end() - 1);
+        return DotNdArrayNdMd(lhs, rhs.reshape(r_shape[0], 1)).reshape(shape);
+    } else {
+        // Basic matrix product
+        return DotNdArrayNdMd(lhs, rhs);
+    }
+}
+
+// ------------------- Utilities for NdArray (Mutmul product) ------------------
+static Shape CheckMatmulable(const Shape& l_shape, const Shape& r_shape) {
+    // Note: 2D at least
+    // Check dot productable
+    if (l_shape.end()[-1] != r_shape.end()[-2]) {
+        throw std::runtime_error("Unable to apply matmul (contracting dim)");
+    }
+    // Check broadcastable
+    Shape ret_shape = CheckBroadcastable({l_shape.begin(), l_shape.end() - 2},
+                                         {r_shape.begin(), r_shape.end() - 2});
+    // Add last 2D
+    ret_shape.push_back(l_shape.end()[-2]);
+    ret_shape.push_back(r_shape.end()[-1]);
+    return ret_shape;
+}
+
+NdArray MatmulNdArrayImpl(const NdArray& lhs, const NdArray& rhs) {
+    Shape l_shape = lhs.shape();
+    Shape r_shape = rhs.shape();
+
+    // Extends 2D to 3D
+    const bool l_extend_2d = (l_shape.size() == 2);
+    const bool r_extend_2d = (r_shape.size() == 2);
+    if (l_extend_2d) {  // Third dimension is broadcasted.
+        l_shape = Shape{1, l_shape[0], l_shape[1]};
+    }
+    if (r_extend_2d) {
+        r_shape = Shape{1, r_shape[0], r_shape[1]};
+    }
+
+    // Check shape
+    const Shape& ret_shape = CheckMatmulable(l_shape, r_shape);
+
+    // Operators
+    const int n_row = l_shape.end()[-2];
+    const int n_contract = l_shape.end()[-1];
+    const int n_col = r_shape.end()[-1];
+    auto&& op_1d2d = SelectDot1d2dOp(l_shape, r_shape);
+    auto&& op_2d2d = [&](const NdArray::Iter& o, const NdArray::ConstIter& l,
+                         const NdArray::ConstIter& r) {
+        for (int row_idx = 0; row_idx < n_row; row_idx++) {
+            op_1d2d(o + row_idx * n_col, l + row_idx * n_contract, r, n_col,
+                    n_contract);
+        }
+    };
+
+    // Apply broadcast
+    NdArray ret(ret_shape);
+    const int ret_step = n_row * n_col;
+    ApplyOpBroadcast(ret, lhs, rhs, 2, ret_step, op_2d2d);
+
+    // Shrink 3D to 2D
+    if (l_extend_2d && r_extend_2d) {
+        return ret.reshape({ret_shape[1], ret_shape[2]});
+    }
+
+    return ret;
+}
+
+NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs) {
+    if (lhs.size() == 0 || rhs.size() == 0) {
+        // Empty array
+        throw std::runtime_error("Matmul product of empty array");
+    }
+
+    Shape l_shape = lhs.shape();
+    Shape r_shape = rhs.shape();
+
+    // Extends 1D to 2D
+    const bool l_extend_1d = (l_shape.size() == 1);
+    const bool r_extend_1d = (r_shape.size() == 1);
+    if (l_extend_1d) {
+        l_shape = Shape{1, l_shape[0]};
+    }
+    if (r_extend_1d) {
+        r_shape = Shape{r_shape[0], 1};
+    }
+
+    // Run matmul
+    NdArray ret = MatmulNdArrayImpl(lhs.reshape(l_shape), rhs.reshape(r_shape));
+
+    // Shrink 2D to 1D
+    const Shape& ret_shape = ret.shape();
+    if (l_extend_1d && r_extend_1d) {
+        Shape new_ret_shape(ret_shape.begin(), ret_shape.end() - 2);
+        return ret.reshape(new_ret_shape);
+    }
+    if (l_extend_1d) {
+        Shape new_ret_shape(ret_shape.begin(), ret_shape.end() - 2);
+        new_ret_shape.insert(new_ret_shape.end(), ret_shape.end()[-1]);
+        return ret.reshape(new_ret_shape);
+    }
+    if (r_extend_1d) {
+        Shape new_ret_shape(ret_shape.begin(), ret_shape.end() - 1);
+        return ret.reshape(new_ret_shape);
+    }
+    return ret;
+}
+
 // ------------------- Utilities for NdArray (Cross product) -------------------
 static void CrossNdArray1d1dShape33(const NdArray::Iter& ret_data,
                                     const NdArray::ConstIter& l_data,
@@ -1665,8 +1790,9 @@ static void CrossNdArray1d1dShape22(const NdArray::Iter& ret_data,
     ret_data[0] = l_data[0] * r_data[1] - l_data[1] * r_data[0];
 }
 
-template <int ret_step, typename F>
-NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, F op) {
+template <typename F>
+NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs,
+                         const int ret_step, F op) {
     const Shape& l_shape = lhs.shape();
     const Shape& r_shape = rhs.shape();
     Shape ret_shape = CheckBroadcastable({l_shape.begin(), l_shape.end() - 1},
@@ -1674,8 +1800,54 @@ NdArray CrossNdArrayNdMd(const NdArray& lhs, const NdArray& rhs, F op) {
     ret_shape.push_back(ret_step);
     // Apply broadcast
     NdArray ret(ret_shape);
-    ApplyOpBroadcast<ret_step>(ret, lhs, rhs, 1, op);
+    ApplyOpBroadcast(ret, lhs, rhs, 1, ret_step, op);
     return ret;
+}
+
+static NdArray CrossNdArray(const NdArray& lhs, const NdArray& rhs) {
+    if (lhs.size() == 0 || rhs.size() == 0) {
+        // Empty array
+        throw std::runtime_error("Cross product of empty array");
+    }
+    const Shape& l_shape = lhs.shape();
+    const Shape& r_shape = rhs.shape();
+    const int l_back = l_shape.back();
+    const int r_back = r_shape.back();
+    if (l_shape.size() == 1 && r_shape.size() == 1) {
+        // 1D cross
+        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
+            NdArray ret({3});
+            CrossNdArray1d1dShape33(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        } else if (l_back == 3 && r_back == 2) {  // [3].cross([2]) -> [3]
+            NdArray ret({3});
+            CrossNdArray1d1dShape32(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        } else if (l_back == 2 && r_back == 3) {  // [2].cross([3]) -> [3]
+            NdArray ret({3});
+            CrossNdArray1d1dShape23(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
+            NdArray ret({1});
+            CrossNdArray1d1dShape22(ret.data(), lhs.data(), rhs.data());
+            return ret;
+        }
+    } else {
+        // ND cross
+        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
+            return CrossNdArrayNdMd(lhs, rhs, 3, CrossNdArray1d1dShape33);
+        } else if (l_back == 3 && r_back == 2) {  // [2].cross([3]) -> [3]
+            return CrossNdArrayNdMd(lhs, rhs, 3, CrossNdArray1d1dShape32);
+        } else if (l_back == 2 && r_back == 3) {  // [3].cross([2]) -> [3]
+            return CrossNdArrayNdMd(lhs, rhs, 3, CrossNdArray1d1dShape23);
+        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
+            auto&& ret = CrossNdArrayNdMd(lhs, rhs, 1, CrossNdArray1d1dShape22);
+            const Shape& ret_shape = ret.shape();  // Remove last dim
+            return ret.reshape(Shape{ret_shape.begin(), ret_shape.end() - 1});
+        }
+    }
+    throw std::runtime_error("incompatible dimensions for cross product"
+                             " (dimension must be 2 or 3)");
 }
 
 // ----------------------- Utilities for NdArray (Stack) -----------------------
@@ -2680,30 +2852,7 @@ NdArray NdArray::slice(std::initializer_list<I>... slice_index) const {
 
 // --------------------------------- Dot Method --------------------------------
 NdArray NdArray::dot(const NdArray& other) const {
-    const NdArray& lhs = *this;
-    const NdArray& rhs = other;
-    const Shape& l_shape = lhs.shape();
-    const Shape& r_shape = rhs.shape();
-    if (lhs.size() == 0 || rhs.size() == 0) {
-        // Empty array
-        throw std::runtime_error("Dot product of empty array");
-    } else if (lhs.size() == 1) {
-        // Simple multiply (left)
-        return static_cast<float>(lhs) * rhs;
-    } else if (rhs.size() == 1) {
-        // Simple multiply (right)
-        return lhs * static_cast<float>(rhs);
-    } else if (l_shape.size() == 1 && r_shape.size() == 1) {
-        // Inner product of vector (1D, 1D)
-        return DotNdArray1d(lhs, rhs);
-    } else if (r_shape.size() == 1) {
-        // Broadcast right 1D array
-        const Shape shape(l_shape.begin(), l_shape.end() - 1);
-        return DotNdArrayNdMd(lhs, rhs.reshape(r_shape[0], 1)).reshape(shape);
-    } else {
-        // Basic matrix product
-        return DotNdArrayNdMd(lhs, rhs);
-    }
+    return DotNdArray(*this, other);
 }
 
 NdArray NdArray::dot(float other) const {
@@ -2713,51 +2862,7 @@ NdArray NdArray::dot(float other) const {
 
 // -------------------------------- Cross Method -------------------------------
 NdArray NdArray::cross(const NdArray& other) const {
-    const NdArray& lhs = *this;
-    const NdArray& rhs = other;
-    if (lhs.size() == 0 || rhs.size() == 0) {
-        // Empty array
-        throw std::runtime_error("Cross product of empty array");
-    }
-    const Shape& l_shape = lhs.shape();
-    const Shape& r_shape = rhs.shape();
-    const int l_back = l_shape.back();
-    const int r_back = r_shape.back();
-    if (l_shape.size() == 1 && r_shape.size() == 1) {
-        // 1D cross
-        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
-            NdArray ret({3});
-            CrossNdArray1d1dShape33(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        } else if (l_back == 3 && r_back == 2) {  // [3].cross([2]) -> [3]
-            NdArray ret({3});
-            CrossNdArray1d1dShape32(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        } else if (l_back == 2 && r_back == 3) {  // [2].cross([3]) -> [3]
-            NdArray ret({3});
-            CrossNdArray1d1dShape23(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
-            NdArray ret({1});
-            CrossNdArray1d1dShape22(ret.data(), lhs.data(), rhs.data());
-            return ret;
-        }
-    } else {
-        // ND cross
-        if (l_back == 3 && r_back == 3) {  // [3].cross([3]) -> [3]
-            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape33);
-        } else if (l_back == 3 && r_back == 2) {  // [2].cross([3]) -> [3]
-            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape32);
-        } else if (l_back == 2 && r_back == 3) {  // [3].cross([2]) -> [3]
-            return CrossNdArrayNdMd<3>(lhs, rhs, CrossNdArray1d1dShape23);
-        } else if (l_back == 2 && r_back == 2) {  // [2].cross([2]) -> [1]
-            auto&& ret = CrossNdArrayNdMd<1>(lhs, rhs, CrossNdArray1d1dShape22);
-            const Shape& ret_shape = ret.shape();  // Remove last dim
-            return ret.reshape(Shape{ret_shape.begin(), ret_shape.end() - 1});
-        }
-    }
-    throw std::runtime_error("incompatible dimensions for cross product"
-                             " (dimension must be 2 or 3)");
+    return CrossNdArray(*this, other);
 }
 
 // -------------------------------- Axis Method --------------------------------
@@ -3452,6 +3557,10 @@ NdArray Dot(const NdArray& lhs, float rhs) {
 
 NdArray Dot(float lhs, const NdArray& rhs) {
     return lhs * rhs;  // Simple multiply
+}
+
+NdArray Matmul(const NdArray& lhs, const NdArray& rhs) {
+    return MatmulNdArray(lhs, rhs);
 }
 
 NdArray Cross(const NdArray& lhs, const NdArray& rhs) {

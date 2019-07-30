@@ -564,6 +564,108 @@ TEST_CASE("NdArray") {
                      "   [190, 211]]]]");
     }
 
+    // ----------------------------- Matmul product ----------------------------
+    SECTION("Matmul (2D, 2D)") {
+        auto m1 = NdArray::Arange(6.f).reshape(2, 3);
+        auto m2 = NdArray::Arange(6.f).reshape(3, 2);
+        auto m12 = Matmul(m1, m2);
+        CheckNdArray(m12,
+                     "[[10, 13],\n"
+                     " [28, 40]]");
+    }
+
+    SECTION("Matmul (2D, 3D)") {
+        auto m1 = NdArray::Arange(6.f).reshape(2, 3);
+        auto m2 = NdArray::Arange(6.f).reshape(1, 3, 2);
+        auto m12 = Matmul(m1, m2);
+        CheckNdArray(m12,
+                     "[[[10, 13],\n"
+                     "  [28, 40]]]");
+    }
+
+    SECTION("Matmul (3D, 2D)") {
+        auto m1 = NdArray::Arange(6.f).reshape(1, 2, 3);
+        auto m2 = NdArray::Arange(6.f).reshape(3, 2);
+        auto m12 = Matmul(m1, m2);
+        CheckNdArray(m12,
+                     "[[[10, 13],\n"
+                     "  [28, 40]]]");
+    }
+
+    SECTION("Matmul (1D, 2D)") {
+        auto m1 = NdArray::Arange(3.f);
+        auto m2 = NdArray::Arange(6.f).reshape(3, 2);
+        auto m12 = Matmul(m1, m2);
+        CheckNdArray(m12, "[10, 13]");
+    }
+
+    SECTION("Matmul (2D, 1D)") {
+        auto m1 = NdArray::Arange(6.f).reshape(3, 2);
+        auto m2 = NdArray::Arange(2.f);
+        auto m12 = Matmul(m1, m2);
+        CheckNdArray(m12, "[1, 3, 5]");
+    }
+
+    SECTION("Matmul (1D, ND)") {
+        auto m1 = NdArray::Arange(3.f);
+        auto m2 = NdArray::Arange(12.f).reshape(2, 1, 3, 2);
+        auto m12 = Matmul(m1, m2);
+        CheckNdArray(m12, "[[[10, 13]],\n"
+                          " [[28, 31]]]");
+    }
+
+    SECTION("Matmul (2D, ND)") {
+        auto m1 = NdArray::Arange(12.f).reshape(2, 1, 3, 2);
+        auto m2 = NdArray::Arange(2.f);
+        auto m12 = Matmul(m1, m2);
+        CheckNdArray(m12, "[[[1, 3, 5]],\n"
+                          " [[7, 9, 11]]]");
+    }
+
+    SECTION("Matmul (ND, MD)") {
+        auto m1 = NdArray::Arange(36.f).reshape(2, 3, 1, 2, 3);
+        auto m2 = NdArray::Arange(36.f).reshape(3, 3, 4);
+        auto m12 = Matmul(m1, m2);
+        CHECK(m12.shape() == Shape{2, 3, 3, 2, 4});
+        CheckNdArray(m12,
+                     "[[[[[20, 23, 26, 29],\n"
+                     "    [56, 68, 80, 92]],\n"
+                     "   [[56, 59, 62, 65],\n"
+                     "    [200, 212, 224, 236]],\n"
+                     "   [[92, 95, 98, 101],\n"
+                     "    [344, 356, 368, 380]]],\n"
+                     "  [[[92, 113, 134, 155],\n"
+                     "    [128, 158, 188, 218]],\n"
+                     "   [[344, 365, 386, 407],\n"
+                     "    [488, 518, 548, 578]],\n"
+                     "   [[596, 617, 638, 659],\n"
+                     "    [848, 878, 908, 938]]],\n"
+                     "  [[[164, 203, 242, 281],\n"
+                     "    [200, 248, 296, 344]],\n"
+                     "   [[632, 671, 710, 749],\n"
+                     "    [776, 824, 872, 920]],\n"
+                     "   [[1100, 1139, 1178, 1217],\n"
+                     "    [1352, 1400, 1448, 1496]]]],\n"
+                     " [[[[236, 293, 350, 407],\n"
+                     "    [272, 338, 404, 470]],\n"
+                     "   [[920, 977, 1034, 1091],\n"
+                     "    [1064, 1130, 1196, 1262]],\n"
+                     "   [[1604, 1661, 1718, 1775],\n"
+                     "    [1856, 1922, 1988, 2054]]],\n"
+                     "  [[[308, 383, 458, 533],\n"
+                     "    [344, 428, 512, 596]],\n"
+                     "   [[1208, 1283, 1358, 1433],\n"
+                     "    [1352, 1436, 1520, 1604]],\n"
+                     "   [[2108, 2183, 2258, 2333],\n"
+                     "    [2360, 2444, 2528, 2612]]],\n"
+                     "  [[[380, 473, 566, 659],\n"
+                     "    [416, 518, 620, 722]],\n"
+                     "   [[1496, 1589, 1682, 1775],\n"
+                     "    [1640, 1742, 1844, 1946]],\n"
+                     "   [[2612, 2705, 2798, 2891],\n"
+                     "    [2864, 2966, 3068, 3170]]]]]");
+    }
+
     // ----------------------------- Cross product -----------------------------
     SECTION("Cross (1D, 1D), (3, 3 elem)") {
         NdArray m1 = {1.f, 2.f, 3.f};
