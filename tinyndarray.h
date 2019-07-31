@@ -235,15 +235,15 @@ NdArray operator-(const NdArray& lhs, const NdArray& rhs);
 NdArray operator*(const NdArray& lhs, const NdArray& rhs);
 NdArray operator/(const NdArray& lhs, const NdArray& rhs);
 // Arithmetic (NdArray, float)
-NdArray operator+(const NdArray& lhs, const float& rhs);
-NdArray operator-(const NdArray& lhs, const float& rhs);
-NdArray operator*(const NdArray& lhs, const float& rhs);
-NdArray operator/(const NdArray& lhs, const float& rhs);
+NdArray operator+(const NdArray& lhs, float rhs);
+NdArray operator-(const NdArray& lhs, float rhs);
+NdArray operator*(const NdArray& lhs, float rhs);
+NdArray operator/(const NdArray& lhs, float rhs);
 // Arithmetic (float, NdArray)
-NdArray operator+(const float& lhs, const NdArray& rhs);
-NdArray operator-(const float& lhs, const NdArray& rhs);
-NdArray operator*(const float& lhs, const NdArray& rhs);
-NdArray operator/(const float& lhs, const NdArray& rhs);
+NdArray operator+(float lhs, const NdArray& rhs);
+NdArray operator-(float lhs, const NdArray& rhs);
+NdArray operator*(float lhs, const NdArray& rhs);
+NdArray operator/(float lhs, const NdArray& rhs);
 // Comparison (NdArray, NdArray)
 NdArray operator==(const NdArray& lhs, const NdArray& rhs);
 NdArray operator!=(const NdArray& lhs, const NdArray& rhs);
@@ -3026,36 +3026,36 @@ NdArray operator/(const NdArray& lhs, const NdArray& rhs) {
 }
 
 // Arithmetic (NdArray, float)
-NdArray operator+(const NdArray& lhs, const float& rhs) {
+NdArray operator+(const NdArray& lhs, float rhs) {
     return Add(lhs, rhs);
 }
 
-NdArray operator-(const NdArray& lhs, const float& rhs) {
+NdArray operator-(const NdArray& lhs, float rhs) {
     return Subtract(lhs, rhs);
 }
 
-NdArray operator*(const NdArray& lhs, const float& rhs) {
+NdArray operator*(const NdArray& lhs, float rhs) {
     return Multiply(lhs, rhs);
 }
 
-NdArray operator/(const NdArray& lhs, const float& rhs) {
+NdArray operator/(const NdArray& lhs, float rhs) {
     return Divide(lhs, rhs);
 }
 
 // Arithmetic (float, NdArray)
-NdArray operator+(const float& lhs, const NdArray& rhs) {
+NdArray operator+(float lhs, const NdArray& rhs) {
     return Add(lhs, rhs);
 }
 
-NdArray operator-(const float& lhs, const NdArray& rhs) {
+NdArray operator-(float lhs, const NdArray& rhs) {
     return Subtract(lhs, rhs);
 }
 
-NdArray operator*(const float& lhs, const NdArray& rhs) {
+NdArray operator*(float lhs, const NdArray& rhs) {
     return Multiply(lhs, rhs);
 }
 
-NdArray operator/(const float& lhs, const NdArray& rhs) {
+NdArray operator/(float lhs, const NdArray& rhs) {
     return Divide(lhs, rhs);
 }
 
