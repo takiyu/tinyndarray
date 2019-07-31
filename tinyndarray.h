@@ -1672,7 +1672,7 @@ static Shape CheckMatmulable(const Shape& l_shape, const Shape& r_shape) {
     return ret_shape;
 }
 
-NdArray MatmulNdArrayImpl(const NdArray& lhs, const NdArray& rhs) {
+static NdArray MatmulNdArrayImpl(const NdArray& lhs, const NdArray& rhs) {
     Shape l_shape = lhs.shape();
     Shape r_shape = rhs.shape();
 
@@ -1715,7 +1715,7 @@ NdArray MatmulNdArrayImpl(const NdArray& lhs, const NdArray& rhs) {
     return ret;
 }
 
-NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs) {
+static NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs) {
     if (lhs.size() == 0 || rhs.size() == 0) {
         // Empty array
         throw std::runtime_error("Matmul product of empty array");

@@ -610,16 +610,18 @@ TEST_CASE("NdArray") {
         auto m1 = NdArray::Arange(3.f);
         auto m2 = NdArray::Arange(12.f).reshape(2, 1, 3, 2);
         auto m12 = Matmul(m1, m2);
-        CheckNdArray(m12, "[[[10, 13]],\n"
-                          " [[28, 31]]]");
+        CheckNdArray(m12,
+                     "[[[10, 13]],\n"
+                     " [[28, 31]]]");
     }
 
     SECTION("Matmul (2D, ND)") {
         auto m1 = NdArray::Arange(12.f).reshape(2, 1, 3, 2);
         auto m2 = NdArray::Arange(2.f);
         auto m12 = Matmul(m1, m2);
-        CheckNdArray(m12, "[[[1, 3, 5]],\n"
-                          " [[7, 9, 11]]]");
+        CheckNdArray(m12,
+                     "[[[1, 3, 5]],\n"
+                     " [[7, 9, 11]]]");
     }
 
     SECTION("Matmul (ND, MD)") {

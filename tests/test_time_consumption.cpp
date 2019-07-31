@@ -244,6 +244,6 @@ TEST_CASE("NdArray Slice") {
         auto m1 = NdArray::Arange(WH * 2).reshape(H, W, 2);
         SliceIndex idx = {{W / 4, W / 4 * 3}, {0, W / 2}, {0, 1}};
         TestSingleMultiThread(
-                "Slice (Basic)", [&]() {}, [&]() { return m1.slice(idx); });
+                "Slice", [&]() {}, [&]() { return m1.slice(idx); });
     }
 }
