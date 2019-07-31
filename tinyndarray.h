@@ -345,6 +345,9 @@ NdArray operator/=(NdArray& lhs, float rhs);
 NdArray operator/=(NdArray&& lhs, float rhs);
 
 // ---------------------------- Operator Functions -----------------------------
+// Single operators
+NdArray Positive(const NdArray& lhs);
+NdArray Negative(const NdArray& lhs);
 // Arithmetic operators (NdArray, NdArray)
 NdArray Add(const NdArray& lhs, const NdArray& rhs);
 NdArray Subtract(const NdArray& lhs, const NdArray& rhs);
@@ -433,6 +436,9 @@ std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis = 0);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
+// Single operators
+NdArray Positive(NdArray&& lhs);
+NdArray Negative(NdArray&& lhs);
 // Arithmetic operators (NdArray, NdArray)
 NdArray Add(NdArray&& lhs, NdArray&& rhs);
 NdArray Add(const NdArray& lhs, NdArray&& rhs);
@@ -2995,11 +3001,11 @@ std::ostream& operator<<(std::ostream& os, const Shape& shape) {
 
 // Single
 NdArray operator+(const NdArray& x) {
-    return x.copy();  // Numpy behavior
+    return Positive(x);
 }
 
 NdArray operator-(const NdArray& x) {
-    return ApplySingleOp(x, [](float v) { return -v; });
+    return Negative(x);
 }
 
 // Arithmetic (NdArray, NdArray)
@@ -3420,6 +3426,15 @@ NdArray operator/=(NdArray&& lhs, float rhs) {
 }
 
 // ---------------------------- Operator Functions -----------------------------
+// Single operators
+NdArray Positive(const NdArray& x) {
+    return x.copy();  // Numpy behavior
+}
+
+NdArray Negative(const NdArray& x) {
+    return ApplySingleOp(x, [](float v) { return -v; });
+}
+
 // Arithmetic operators (NdArray, NdArray)
 NdArray Add(const NdArray& lhs, const NdArray& rhs) {
     return ApplyDualOp(lhs, rhs, std::plus<float>());
@@ -3747,6 +3762,15 @@ NdArray Inv(const NdArray& x) {
 }
 
 // ------------------------ In-place Operator Functions ------------------------
+// Single operators
+NdArray Positive(NdArray&& x) {
+    return std::move(x);
+}
+
+NdArray Negative(NdArray&& x) {
+    return ApplySingleOpInplace(std::move(x), [](float v) { return -v; });
+}
+
 // Arithmetic operators (NdArray, NdArray)
 NdArray Add(NdArray&& lhs, NdArray&& rhs) {
     return ApplyDualOpInplace(std::move(lhs), std::move(rhs),

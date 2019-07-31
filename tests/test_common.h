@@ -1441,6 +1441,16 @@ TEST_CASE("NdArray") {
     }
 
     // --------------------------- Operator function ---------------------------
+    SECTION("Single") {
+        auto m1 = NdArray::Arange(3.f);
+        auto m2 = Positive(m1);
+        auto m3 = Negative(m1);
+        m1[0] = -1.f;
+        CheckNdArray(m1, "[-1, 1, 2]");
+        CheckNdArray(m2, "[0, 1, 2]");
+        CheckNdArray(m3, "[-0, -1, -2]");
+    }
+
     SECTION("Function Arithmetic (NdArray, NdArray)") {
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);
         auto m2 = NdArray::Arange(3.f);
@@ -1833,6 +1843,13 @@ TEST_CASE("NdArray") {
         uintptr_t m5_id = m5.id();
         NdArray m6 = Power(std::move(m4), std::move(m5));
         CHECK((m6.id() != m4_id && m6.id() != m5_id));  // m6 is new array
+    }
+
+    SECTION("Single (inplace)") {
+        CheckNdArrayInplace(NdArray::Arange(3.f), "[0, 1, 2]",
+                            static_cast<NdArray (*)(NdArray &&)>(Positive));
+        CheckNdArrayInplace(NdArray::Arange(3.f), "[-0, -1, -2]",
+                            static_cast<NdArray (*)(NdArray &&)>(Negative));
     }
 
     SECTION("Function Arithmetic (NdArray, NdArray) (in-place both)") {
