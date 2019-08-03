@@ -1544,6 +1544,7 @@ TEST_CASE("NdArray") {
         auto m2 = NdArray::Arange(7.f) / 3.f - 1.f;
         CheckNdArray(-m1, "[-0, -1, -2]");
         CheckNdArray(Abs(-m1), "[0, 1, 2]");
+        CheckNdArray(Sign(m2), "[-1, -1, -1, 0, 1, 1, 1]");
         CheckNdArray(Ceil(m2), "[-1, -0, -0, 0, 1, 1, 1]");
         CheckNdArray(Floor(m2), "[-1, -1, -1, 0, 0, 0, 1]");
         CheckNdArray(Sqrt(m1), "[0, 1, 1.41421]");
@@ -2057,6 +2058,9 @@ TEST_CASE("NdArray") {
     SECTION("Function Basic Math (in-place)") {
         CheckNdArrayInplace(-NdArray::Arange(3.f), "[0, 1, 2]",
                             static_cast<NdArray (*)(NdArray &&)>(Abs));
+        CheckNdArrayInplace(NdArray::Arange(7.f) / 3.f - 1.f,
+                            "[-1, -1, -1, 0, 1, 1, 1]",
+                            static_cast<NdArray (*)(NdArray &&)>(Sign));
         CheckNdArrayInplace(NdArray::Arange(7.f) / 3.f - 1.f,
                             "[-1, -0, -0, 0, 1, 1, 1]",
                             static_cast<NdArray (*)(NdArray &&)>(Ceil));

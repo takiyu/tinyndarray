@@ -392,6 +392,7 @@ NdArray Matmul(const NdArray& lhs, const NdArray& rhs);
 NdArray Cross(const NdArray& lhs, const NdArray& rhs);
 // Basic math operators
 NdArray Abs(const NdArray& x);
+NdArray Sign(const NdArray& x);
 NdArray Ceil(const NdArray& x);
 NdArray Floor(const NdArray& x);
 NdArray Sqrt(const NdArray& x);
@@ -497,6 +498,7 @@ NdArray Less(float lhs, NdArray&& rhs);
 NdArray LessEqual(float lhs, NdArray&& rhs);
 // Basic math operators
 NdArray Abs(NdArray&& x);
+NdArray Sign(NdArray&& x);
 NdArray Ceil(NdArray&& x);
 NdArray Floor(NdArray&& x);
 NdArray Sqrt(NdArray&& x);
@@ -541,8 +543,18 @@ NdArray Inv(NdArray&& x);
 // -----------------------------------------------------------------------------
 // --------------------------- Utilities for NdArray ---------------------------
 // -----------------------------------------------------------------------------
+inline float SignOp(float x) {
+    if (0.f < x) {
+        return 1.f;
+    } else if (x < 0.f) {
+        return -1.f;
+    } else {
+        return 0.f;
+    }
+}
+
 template <typename T>
-T Clamp(const T& v, const T& lower, const T& upper) {
+inline T Clamp(const T& v, const T& lower, const T& upper) {
     return std::min(std::max(v, lower), upper);
 }
 
@@ -3587,6 +3599,10 @@ NdArray Abs(const NdArray& x) {
     return ApplySingleOp(x, static_cast<float (*)(float)>(std::abs));
 }
 
+NdArray Sign(const NdArray& x) {
+    return ApplySingleOp(x, SignOp);
+}
+
 NdArray Ceil(const NdArray& x) {
     return ApplySingleOp(x, static_cast<float (*)(float)>(std::ceil));
 }
@@ -3991,6 +4007,10 @@ NdArray LessEqual(float lhs, NdArray&& rhs) {
 NdArray Abs(NdArray&& x) {
     return ApplySingleOpInplace(std::move(x),
                                 static_cast<float (*)(float)>(std::abs));
+}
+
+NdArray Sign(NdArray&& x) {
+    return ApplySingleOpInplace(std::move(x), SignOp);
 }
 
 NdArray Ceil(NdArray&& x) {

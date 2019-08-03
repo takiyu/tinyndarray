@@ -259,6 +259,7 @@ Functions which takes two arguments support broadcast.
 | **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
 |:--------------------------------------------------------:|:--------------------------------------------------------:|
 | ```np.abs(a)```                                          | ```Abs(a)```                                             |
+| ```np.sign(a)```                                         | ```Sign(a)```                                            |
 | ```np.ceil(a)```                                         | ```Ceil(a)```                                            |
 | ```np.floor(a)```                                        | ```Floor(a)```                                           |
 | ```np.sqrt(a)```                                         | ```Sqrt(a)```                                            |
