@@ -101,6 +101,17 @@ static bool IsSameNdArray(const NdArray& m1, const NdArray& m2) {
     return true;
 }
 
+static void ResolveAmbiguous(NdArray& x) {
+    for (auto&& v : x) {
+        if (std::isnan(v)) {
+            v = std::abs(v);
+        }
+        if (v == -0.f) {
+            v = 0.f;
+        }
+    }
+}
+
 TEST_CASE("NdArray") {
     // -------------------------- Basic construction ---------------------------
     SECTION("Empty") {
@@ -1000,8 +1011,7 @@ TEST_CASE("NdArray") {
         CheckNdArray(m_mul,
                      "[[0, 1, 4],\n"
                      " [0, 4, 10]]");
-        // `0.f / 0.f` can be both of `nan` and `-nan`.
-        m_div(0, 0) = std::abs(m_div(0, 0));
+        ResolveAmbiguous(m_div);  // -nan -> nan
         CheckNdArray(m_div,
                      "[[nan, 1, 1],\n"
                      " [inf, 4, 2.5]]");
@@ -1354,8 +1364,7 @@ TEST_CASE("NdArray") {
         CheckNdArray(m3,
                      "[[0, 1, 4],\n"
                      " [0, 4, 10]]");
-        // `0.f / 0.f` can be both of `nan` and `-nan`.
-        m4(0, 0) = std::abs(m4(0, 0));
+        ResolveAmbiguous(m4);  // -nan -> nan
         CheckNdArray(m4,
                      "[[nan, 1, 1],\n"
                      " [inf, 4, 2.5]]");
@@ -1416,8 +1425,7 @@ TEST_CASE("NdArray") {
         CheckNdArray(m3,
                      "[[0, 1, 4],\n"
                      " [0, 4, 10]]");
-        // `0.f / 0.f` can be both of `nan` and `-nan`.
-        m4(0, 0) = std::abs(m4(0, 0));
+        ResolveAmbiguous(m4);  // -nan -> nan
         CheckNdArray(m4,
                      "[[nan, 1, 1],\n"
                      " [inf, 4, 2.5]]");
@@ -1467,8 +1475,7 @@ TEST_CASE("NdArray") {
         CheckNdArray(m_mul,
                      "[[0, 1, 4],\n"
                      " [0, 4, 10]]");
-        // `0.f / 0.f` can be both of `nan` and `-nan`.
-        m_div(0, 0) = std::abs(m_div(0, 0));
+        ResolveAmbiguous(m_div);  // -nan -> nan
         CheckNdArray(m_div,
                      "[[nan, 1, 1],\n"
                      " [inf, 4, 2.5]]");
