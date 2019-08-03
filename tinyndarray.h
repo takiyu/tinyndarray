@@ -400,6 +400,7 @@ NdArray Clip(const NdArray& x, float x_min, float x_max);
 NdArray Sqrt(const NdArray& x);
 NdArray Exp(const NdArray& x);
 NdArray Log(const NdArray& x);
+NdArray Square(const NdArray& x);
 NdArray Power(const NdArray& x, const NdArray& y);
 NdArray Power(const NdArray& x, float y);
 NdArray Power(float x, const NdArray& y);
@@ -507,6 +508,7 @@ NdArray Clip(NdArray&& x, float x_min, float x_max);
 NdArray Sqrt(NdArray&& x);
 NdArray Exp(NdArray&& x);
 NdArray Log(NdArray&& x);
+NdArray Square(NdArray&& x);
 NdArray Power(NdArray&& x, NdArray&& y);
 NdArray Power(const NdArray& x, NdArray&& y);
 NdArray Power(NdArray&& x, const NdArray& y);
@@ -554,6 +556,10 @@ inline float SignOp(float x) {
     } else {
         return 0.f;
     }
+}
+
+inline float SquareOp(float x) {
+    return x * x;
 }
 
 template <typename T>
@@ -3631,6 +3637,10 @@ NdArray Log(const NdArray& x) {
     return ApplySingleOp(x, static_cast<float (*)(float)>(std::log));
 }
 
+NdArray Square(const NdArray& x) {
+    return ApplySingleOp(x, SquareOp);
+}
+
 NdArray Power(const NdArray& x, const NdArray& y) {
     return ApplyDualOp(x, y, static_cast<float (*)(float, float)>(std::pow));
 }
@@ -4050,6 +4060,10 @@ NdArray Exp(NdArray&& x) {
 NdArray Log(NdArray&& x) {
     return ApplySingleOpInplace(std::move(x),
                                 static_cast<float (*)(float)>(std::log));
+}
+
+NdArray Square(NdArray&& x) {
+    return ApplySingleOpInplace(std::move(x), SquareOp);
 }
 
 NdArray Power(NdArray&& x, NdArray&& y) {

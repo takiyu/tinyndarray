@@ -1559,6 +1559,7 @@ TEST_CASE("NdArray") {
         CheckNdArray(Sqrt(m1), "[0, 1, 1.41421]");
         CheckNdArray(Exp(m1), "[1, 2.71828, 7.38906]");
         CheckNdArray(Log(m1), "[-inf, 0, 0.693147]");
+        CheckNdArray(Square(m1), "[0, 1, 4]");
         CheckNdArray(Power(m1, m1 + 1.f), "[0, 1, 8]");
         CheckNdArray(Power(m1, 4.f), "[0, 1, 16]");
         CheckNdArray(Power(4.f, m1), "[1, 4, 16]");
@@ -2088,6 +2089,8 @@ TEST_CASE("NdArray") {
                             static_cast<NdArray (*)(NdArray &&)>(Exp));
         CheckNdArrayInplace(NdArray::Arange(3.f), "[-inf, 0, 0.693147]",
                             static_cast<NdArray (*)(NdArray &&)>(Log));
+        CheckNdArrayInplace(NdArray::Arange(3.f), "[0, 1, 4]",
+                            static_cast<NdArray (*)(NdArray &&)>(Square));
         CheckNdArrayInplace(
                 NdArray::Arange(3.f), NdArray::Arange(3.f) + 1.f, "[0, 1, 8]",
                 static_cast<NdArray (*)(NdArray&&, NdArray &&)>(Power));

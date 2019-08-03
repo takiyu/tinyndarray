@@ -266,6 +266,7 @@ Functions which takes two arguments support broadcast.
 | ```np.sqrt(a)```                                         | ```Sqrt(a)```                                            |
 | ```np.exp(a)```                                          | ```Exp(a)```                                             |
 | ```np.log(a)```                                          | ```Log(a)```                                             |
+| ```np.square(a)```                                       | ```Square(a)```                                          |
 | ```np.power(a, b)```                                     | ```Power(a, b)```                                        |
 | ```np.power(a, 2.0)```                                   | ```Power(a, 2.f)```                                      |
 | ```np.power(2.0, a)```                                   | ```Power(2.f, a)```                                      |
