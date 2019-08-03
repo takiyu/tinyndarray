@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <exception>
+#include <functional>
 #include <iostream>
 #include <list>
 #include <map>
@@ -395,6 +396,7 @@ NdArray Abs(const NdArray& x);
 NdArray Sign(const NdArray& x);
 NdArray Ceil(const NdArray& x);
 NdArray Floor(const NdArray& x);
+NdArray Clip(const NdArray& x, float x_min, float x_max);
 NdArray Sqrt(const NdArray& x);
 NdArray Exp(const NdArray& x);
 NdArray Log(const NdArray& x);
@@ -501,6 +503,7 @@ NdArray Abs(NdArray&& x);
 NdArray Sign(NdArray&& x);
 NdArray Ceil(NdArray&& x);
 NdArray Floor(NdArray&& x);
+NdArray Clip(NdArray&& x, float x_min, float x_max);
 NdArray Sqrt(NdArray&& x);
 NdArray Exp(NdArray&& x);
 NdArray Log(NdArray&& x);
@@ -554,7 +557,7 @@ inline float SignOp(float x) {
 }
 
 template <typename T>
-inline T Clamp(const T& v, const T& lower, const T& upper) {
+inline T ClipOp(const T& v, const T& lower, const T& upper) {
     return std::min(std::max(v, lower), upper);
 }
 
@@ -2850,8 +2853,8 @@ NdArray NdArray::slice(const SliceIndex& slice_index) const {
             int s = (0 <= si.first) ? si.first : shape[i] + si.first;
             int e = (0 <= si.second) ? si.second : shape[i] + si.second;
             // Clamp
-            s = Clamp(s, 0, shape[i]);  // must be next of the last.
-            e = Clamp(e, 0, shape[i]);
+            s = ClipOp(s, 0, shape[i]);  // must be next of the last.
+            e = ClipOp(e, 0, shape[i]);
             // Register
             slice_shape.push_back(std::max(e - s, 0));  // Escape negative
             new_index.push_back({s, e});
@@ -3611,6 +3614,11 @@ NdArray Floor(const NdArray& x) {
     return ApplySingleOp(x, static_cast<float (*)(float)>(std::floor));
 }
 
+NdArray Clip(const NdArray& x, float x_min, float x_max) {
+    return ApplySingleOp(
+            x, std::bind(ClipOp<float>, std::placeholders::_1, x_min, x_max));
+}
+
 NdArray Sqrt(const NdArray& x) {
     return ApplySingleOp(x, static_cast<float (*)(float)>(std::sqrt));
 }
@@ -4021,6 +4029,12 @@ NdArray Ceil(NdArray&& x) {
 NdArray Floor(NdArray&& x) {
     return ApplySingleOpInplace(std::move(x),
                                 static_cast<float (*)(float)>(std::floor));
+}
+
+NdArray Clip(NdArray&& x, float x_min, float x_max) {
+    return ApplySingleOpInplace(
+            std::move(x),
+            std::bind(ClipOp<float>, std::placeholders::_1, x_min, x_max));
 }
 
 NdArray Sqrt(NdArray&& x) {

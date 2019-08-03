@@ -262,6 +262,7 @@ Functions which takes two arguments support broadcast.
 | ```np.sign(a)```                                         | ```Sign(a)```                                            |
 | ```np.ceil(a)```                                         | ```Ceil(a)```                                            |
 | ```np.floor(a)```                                        | ```Floor(a)```                                           |
+| ```np.clip(a, x_min, x_max)```                           | ```Clip(a, x_min, x_max)```                              |
 | ```np.sqrt(a)```                                         | ```Sqrt(a)```                                            |
 | ```np.exp(a)```                                          | ```Exp(a)```                                             |
 | ```np.log(a)```                                          | ```Log(a)```                                             |
