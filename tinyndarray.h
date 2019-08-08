@@ -2169,8 +2169,8 @@ static int CheckInversable(const Shape& shape) {
     return size;
 }
 
-static void InvertNdArray2d(NdArray::Iter ret_data, NdArray::ConstIter src_data,
-                            int order) {
+static void InvertNdArray2d(const NdArray::Iter& ret_data,
+                            const NdArray::ConstIter& src_data, int order) {
     const int order_2 = order * 2;
     const size_t tmp_size = static_cast<size_t>(order_2 * order_2);
     std::unique_ptr<float[]> tmp(new float[tmp_size]);
@@ -2213,18 +2213,18 @@ static void InvertNdArray2d(NdArray::Iter ret_data, NdArray::ConstIter src_data,
     }
 }
 
-static void InvertNdArrayNd(NdArray::Iter ret_data, NdArray::ConstIter src_data,
+static void InvertNdArrayNd(const NdArray::Iter& ret_data,
+                            const NdArray::ConstIter& src_data,
                             const Shape& src_shape, size_t src_size) {
     // Check it is possible to invert
     const int order = CheckInversable(src_shape);
-    // Compute invese for each lower 2 dimension.
+    // Compute inverse for each lower 2 dimension.
     const int one_size = order * order;
     const int n = static_cast<int>(src_size) / one_size;
-    for (int i = 0; i < n; i++) {
-        InvertNdArray2d(ret_data, src_data, order);
-        ret_data += one_size;
-        src_data += one_size;
-    }
+    RunParallel(n, [&](int i) {
+        const int idx = one_size * i;
+        InvertNdArray2d(ret_data + idx, src_data + idx, order);
+    });
 }
 
 static NdArray InvertNdArray(const NdArray& src) {
