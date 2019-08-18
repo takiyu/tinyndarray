@@ -35,6 +35,8 @@ using Shape = std::vector<int>;
 using Index = std::vector<int>;
 using SliceIndex = std::vector<std::pair<int, int>>;
 using Axis = std::vector<int>;
+template <bool C>
+using Float =  std::conditional_t<C, const float, float>;
 
 // =============================================================================
 // ======================= Nested Float Initializer List =======================
@@ -57,8 +59,10 @@ using FloatList = typename FloatListHelper<D>::type;
 // =============================================================================
 class NdArray {
 public:
-    class Iter;
-    class ConstIter;
+    template <bool C>
+    class IterBase;
+    using Iter = IterBase<false>;
+    using ConstIter = IterBase<true>;
 
     NdArray();
     NdArray(const NdArray&);
@@ -179,48 +183,28 @@ private:
 };
 
 // --------------------------------- Iterator ----------------------------------
-class NdArray::Iter {
+template <bool C>
+class NdArray::IterBase {
 public:
-    Iter(float* p_);
-    float& operator*();
-    float& operator*() const;
-    float& operator[](int i);
-    float& operator[](int i) const;
-    Iter& operator++();
-    Iter& operator--();
-    Iter operator++(int);
-    Iter operator--(int);
-    Iter operator+(int i) const;
-    Iter operator-(int i) const;
-    Iter& operator+=(int i);
-    Iter& operator-=(int i);
-    bool operator==(const Iter& other) const;
-    bool operator!=(const Iter& other) const;
+    IterBase(Float<C>* p_);
+    Float<C>& operator*();
+    Float<C>& operator*() const;
+    Float<C>& operator[](int i);
+    Float<C>& operator[](int i) const;
+    IterBase& operator++();
+    IterBase& operator--();
+    IterBase operator++(int);
+    IterBase operator--(int);
+    IterBase operator+(int i) const;
+    IterBase operator-(int i) const;
+    IterBase& operator+=(int i);
+    IterBase& operator-=(int i);
+    bool operator==(const IterBase& other) const;
+    bool operator!=(const IterBase& other) const;
     operator ConstIter() const;
 
 private:
-    float* p;
-};
-
-// ------------------------------ Const Iterator -------------------------------
-class NdArray::ConstIter {
-public:
-    ConstIter(const float* p_);
-    const float& operator*() const;
-    const float& operator[](int i) const;
-    ConstIter& operator++();
-    ConstIter& operator--();
-    ConstIter operator++(int);
-    ConstIter operator--(int);
-    ConstIter operator+(int i) const;
-    ConstIter operator-(int i) const;
-    ConstIter& operator+=(int i);
-    ConstIter& operator-=(int i);
-    bool operator==(const ConstIter& other) const;
-    bool operator!=(const ConstIter& other) const;
-
-private:
-    const float* p;
+    Float<C>* p;
 };
 
 // --------------------------------- Operators ---------------------------------
@@ -2346,134 +2330,95 @@ public:
 };
 
 // --------------------------------- Iterator ----------------------------------
-NdArray::Iter::Iter(float* p_) : p(p_) {}
+template <bool C>
+NdArray::IterBase<C>::IterBase(Float<C>* p_) : p(p_) {}
 
-float& NdArray::Iter::operator*() {
+template <bool C>
+Float<C>& NdArray::IterBase<C>::operator*() {
     return *p;
 }
 
-float& NdArray::Iter::operator*() const {
+template <bool C>
+Float<C>& NdArray::IterBase<C>::operator*() const {
     return *p;
 }
 
-float& NdArray::Iter::operator[](int i) {
+template <bool C>
+Float<C>& NdArray::IterBase<C>::operator[](int i) {
     return p[i];
 }
 
-float& NdArray::Iter::operator[](int i) const {
+template <bool C>
+Float<C>& NdArray::IterBase<C>::operator[](int i) const {
     return p[i];
 }
 
-NdArray::Iter& NdArray::Iter::operator++() {
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator++() {
     p++;
     return *this;
 }
 
-NdArray::Iter& NdArray::Iter::operator--() {
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator--() {
     p--;
     return *this;
 }
 
-NdArray::Iter NdArray::Iter::operator++(int) {
-    Iter tmp = *this;
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator++(int) {
+    IterBase tmp = *this;
     p++;
     return tmp;
 }
 
-NdArray::Iter NdArray::Iter::operator--(int) {
-    Iter tmp = *this;
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator--(int) {
+    IterBase tmp = *this;
     p--;
     return tmp;
 }
 
-NdArray::Iter NdArray::Iter::operator+(int i) const {
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator+(int i) const {
     return {p + i};
 }
 
-NdArray::Iter NdArray::Iter::operator-(int i) const {
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator-(int i) const {
     return {p - i};
 }
 
-NdArray::Iter& NdArray::Iter::operator+=(int i) {
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator+=(int i) {
     p += i;
     return *this;
 }
 
-NdArray::Iter& NdArray::Iter::operator-=(int i) {
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator-=(int i) {
     p -= i;
     return *this;
 }
 
-bool NdArray::Iter::operator==(const Iter& other) const {
+template <bool C>
+bool NdArray::IterBase<C>::operator==(const IterBase& other) const {
     return p == other.p;
 }
 
-bool NdArray::Iter::operator!=(const Iter& other) const {
+template <bool C>
+bool NdArray::IterBase<C>::operator!=(const IterBase& other) const {
     return p != other.p;
 }
 
-NdArray::Iter::operator NdArray::ConstIter() const {
+template <bool C>
+NdArray::IterBase<C>::operator NdArray::ConstIter() const {
     return NdArray::ConstIter{p};
 }
 
-// ------------------------------ Const Iterator -------------------------------
-NdArray::ConstIter::ConstIter(const float* p_) : p(p_) {}
-
-const float& NdArray::ConstIter::operator*() const {
-    return *p;
-}
-
-const float& NdArray::ConstIter::operator[](int i) const {
-    return p[i];
-}
-
-NdArray::ConstIter& NdArray::ConstIter::operator++() {
-    p++;
-    return *this;
-}
-
-NdArray::ConstIter& NdArray::ConstIter::operator--() {
-    p--;
-    return *this;
-}
-
-NdArray::ConstIter NdArray::ConstIter::operator++(int) {
-    ConstIter tmp = *this;
-    p++;
-    return tmp;
-}
-
-NdArray::ConstIter NdArray::ConstIter::operator--(int) {
-    ConstIter tmp = *this;
-    p--;
-    return tmp;
-}
-
-NdArray::ConstIter NdArray::ConstIter::operator+(int i) const {
-    return {p + i};
-}
-
-NdArray::ConstIter NdArray::ConstIter::operator-(int i) const {
-    return {p - i};
-}
-
-NdArray::ConstIter& NdArray::ConstIter::operator+=(int i) {
-    p += i;
-    return *this;
-}
-
-NdArray::ConstIter& NdArray::ConstIter::operator-=(int i) {
-    p -= i;
-    return *this;
-}
-
-bool NdArray::ConstIter::operator==(const ConstIter& other) const {
-    return p == other.p;
-}
-
-bool NdArray::ConstIter::operator!=(const ConstIter& other) const {
-    return p != other.p;
-}
+// -------------------------- Iterator Specializations -------------------------
+template class NdArray::IterBase<false>;
+template class NdArray::IterBase<true>;
 
 // ------------------------------- Static Member -------------------------------
 std::random_device NdArray::s_rand_seed;
