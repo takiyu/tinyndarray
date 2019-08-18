@@ -517,6 +517,10 @@ NdArray Where(NdArray&& cond, float x, float y);
 // Inverse
 NdArray Inv(NdArray&& x);
 
+// -------------------------- Iterator Specializations -------------------------
+template class NdArray::IterBase<false>;
+template class NdArray::IterBase<true>;
+
 #endif  // TINYNDARRAY_NO_DECLARATION
 // #############################################################################
 // ############################# End of Declaration ############################
@@ -2403,10 +2407,6 @@ template <bool C>
 NdArray::IterBase<C>::operator NdArray::ConstIter() const {
     return NdArray::ConstIter{p};
 }
-
-// -------------------------- Iterator Specializations -------------------------
-template class NdArray::IterBase<false>;
-template class NdArray::IterBase<true>;
 
 // ------------------------------- Static Member -------------------------------
 std::random_device NdArray::s_rand_seed;
