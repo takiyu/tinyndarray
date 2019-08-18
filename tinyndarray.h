@@ -187,6 +187,7 @@ template <bool C>
 class NdArray::IterBase {
 public:
     IterBase(Float<C>* p_);
+    virtual ~IterBase();
     Float<C>& operator*() const;
     Float<C>& operator[](int i) const;
     IterBase& operator++();
@@ -2334,6 +2335,9 @@ public:
 // --------------------------------- Iterator ----------------------------------
 template <bool C>
 NdArray::IterBase<C>::IterBase(Float<C>* p_) : p(p_) {}
+
+template <bool C>
+NdArray::IterBase<C>::~IterBase() {}
 
 template <bool C>
 Float<C>& NdArray::IterBase<C>::operator*() const {
