@@ -187,9 +187,7 @@ template <bool C>
 class NdArray::IterBase {
 public:
     IterBase(Float<C>* p_);
-    Float<C>& operator*();
     Float<C>& operator*() const;
-    Float<C>& operator[](int i);
     Float<C>& operator[](int i) const;
     IterBase& operator++();
     IterBase& operator--();
@@ -2334,18 +2332,8 @@ template <bool C>
 NdArray::IterBase<C>::IterBase(Float<C>* p_) : p(p_) {}
 
 template <bool C>
-Float<C>& NdArray::IterBase<C>::operator*() {
-    return *p;
-}
-
-template <bool C>
 Float<C>& NdArray::IterBase<C>::operator*() const {
     return *p;
-}
-
-template <bool C>
-Float<C>& NdArray::IterBase<C>::operator[](int i) {
-    return p[i];
 }
 
 template <bool C>
