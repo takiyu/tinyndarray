@@ -36,7 +36,7 @@ using Index = std::vector<int>;
 using SliceIndex = std::vector<std::pair<int, int>>;
 using Axis = std::vector<int>;
 template <bool C>
-using Float =  std::conditional_t<C, const float, float>;
+using Float = std::conditional_t<C, const float, float>;
 
 // =============================================================================
 // ======================= Nested Float Initializer List =======================
@@ -420,6 +420,9 @@ NdArray Stack(const std::vector<NdArray>& xs, int axis = 0);
 NdArray Concatenate(const std::vector<NdArray>& xs, int axis = 0);
 std::vector<NdArray> Split(const NdArray& x, int n_section, int axis = 0);
 std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis = 0);
+// Change view
+NdArray Transpose(const NdArray& x);
+NdArray Swapaxes(const NdArray& x, int axis1, int axis2);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -2143,6 +2146,97 @@ static std::vector<NdArray> SplitNdArray(const NdArray& x, const Index& idxs,
     return SplitNdArrayImpl(x, idxs, axis);
 }
 
+// -------------------- Utilities for NdArray (Change View) --------------------
+template <typename ViewF>
+static void ChangeNdArrayView(const NdArray::Iter& ret_data,
+                              const NdArray::ConstIter& src_data, size_t size,
+                              ViewF view_func) {
+    // Copy under view conversion function
+    RunParallel(static_cast<int>(size), [&](int src_idx) {
+        // Get result index
+        const int ret_idx = view_func(src_idx);
+        // Copy
+        ret_data[ret_idx] = src_data[src_idx];
+    });
+}
+
+static NdArray TransposeNdArray(const NdArray& src) {
+    const Shape& src_shape = src.shape();
+
+    // Create result shape
+    Shape ret_shape;
+    std::reverse_copy(src_shape.begin(), src_shape.end(),
+                      back_inserter(ret_shape));
+    // Create result array
+    NdArray ret(ret_shape);
+
+    // Pre-compute child sizes
+    const std::vector<int> src_child_sizes = ComputeChildSizes(src_shape);
+    const std::vector<int> ret_child_sizes = ComputeChildSizes(ret_shape);
+
+    // Apply view change
+    const size_t ndim = src_shape.size();
+    ChangeNdArrayView(ret.data(), src.data(), src.size(), [&](int src_idx) {
+        // Decompose
+        auto src_idxs = std::make_unique<int[]>(ndim);
+        for (size_t d = 0; d < ndim; d++) {
+            src_idxs[d] = src_idx / src_child_sizes[d];
+            src_idx -= src_idxs[d] * src_child_sizes[d];
+        }
+        // Compose (with inverting indices)
+        int ret_idx = 0;
+        for (size_t d = 0; d < ndim; d++) {
+            ret_idx += src_idxs[ndim - d - 1] * ret_child_sizes[d];
+        }
+        return ret_idx;
+    });
+    return ret;
+}
+
+static NdArray SwapaxesNdArray(const NdArray& src, int axis1, int axis2) {
+    const Shape& src_shape = src.shape();
+
+    // Fix negative axis
+    if (axis1 < 0) {
+        axis1 = static_cast<int>(src.ndim()) + axis1;
+    }
+    if (axis2 < 0) {
+        axis2 = static_cast<int>(src.ndim()) + axis2;
+    }
+    const size_t axis1_l = static_cast<size_t>(axis1);
+    const size_t axis2_l = static_cast<size_t>(axis2);
+
+    // Create result shape
+    Shape ret_shape = src_shape;
+    std::swap(ret_shape[axis1_l], ret_shape[axis2_l]);
+    // Create result array
+    NdArray ret(ret_shape);
+
+    // Pre-compute child sizes
+    const std::vector<int> src_child_sizes = ComputeChildSizes(src_shape);
+    const std::vector<int> ret_child_sizes = ComputeChildSizes(ret_shape);
+
+    // Apply view change
+    const size_t ndim = src_shape.size();
+    ChangeNdArrayView(ret.data(), src.data(), src.size(), [&](int src_idx) {
+        // Decompose
+        auto idxs = std::make_unique<int[]>(ndim);
+        for (size_t d = 0; d < ndim; d++) {
+            idxs[d] = src_idx / src_child_sizes[d];
+            src_idx -= idxs[d] * src_child_sizes[d];
+        }
+        // Swap axes
+        std::swap(idxs[axis1_l], idxs[axis2_l]);
+        // Compose
+        int ret_idx = 0;
+        for (size_t d = 0; d < ndim; d++) {
+            ret_idx += idxs[d] * ret_child_sizes[d];
+        }
+        return ret_idx;
+    });
+    return ret;
+}
+
 // ---------------------- Utilities for NdArray (Inverse) ----------------------
 static int CheckInversable(const Shape& shape) {
     if (shape.size() < 2) {
@@ -3725,6 +3819,15 @@ std::vector<NdArray> Split(const NdArray& x, int n_section, int axis) {
 
 std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis) {
     return SplitNdArray(x, idxs, axis);
+}
+
+// Change view
+NdArray Transpose(const NdArray& x) {
+    return TransposeNdArray(x);
+}
+
+NdArray Swapaxes(const NdArray& x, int axis1, int axis2) {
+    return SwapaxesNdArray(x, axis1, axis2);
 }
 
 // Inverse

@@ -316,7 +316,7 @@ Functions which takes two arguments support broadcast.
 | ```a.max(axis=0)```                                      | ```a.max({0})```                                         |
 | ```a.mean(axis=0)```                                     | ```a.mean({0})```                                        |
 
-### Grouping Method
+### Grouping Functions
 
 | **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
 |:--------------------------------------------------------:|:--------------------------------------------------------:|
@@ -324,6 +324,15 @@ Functions which takes two arguments support broadcast.
 | ```np.concatenate((a, b, ...), axis=0)```                | ```Concatenate({a, b, ...}, 0)```                        |
 | ```np.split(a, 2, axis=0)```                             | ```Split(a, 2, 0)```                                     |
 | ```np.split(a, [1, 3], axis=0)```                        | ```Split(a, {1, 3}, 0)```                                |
+
+### View Changing Functions
+
+View chaining methods create copy of the array, not reference.
+
+| **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
+|:--------------------------------------------------------:|:--------------------------------------------------------:|
+| ```np.transpose(x)```                                    | ```Transpose(x)```                                       |
+| ```np.swapaxes(x, 0, 2)```                               | ```Swapaxes(x, 0, 2)```                                  |
 
 ### Matrix Products
 

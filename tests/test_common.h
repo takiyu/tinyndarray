@@ -1803,6 +1803,32 @@ TEST_CASE("NdArray") {
                      "  [15]]]");
     }
 
+    SECTION("Function Transpose") {
+        auto m1 = NdArray::Arange(6.f).reshape(3, 2);
+        CheckNdArray(Transpose(m1),
+                     "[[0, 2, 4],\n"
+                     " [1, 3, 5]]");
+        auto m2 = NdArray::Arange(8).reshape(2, 2, 2);
+        CheckNdArray(Transpose(m2),
+                     "[[[0, 4],\n"
+                     "  [2, 6]],\n"
+                     " [[1, 5],\n"
+                     "  [3, 7]]]");
+    }
+
+    SECTION("Function Swapaxes") {
+        auto m1 = NdArray::Arange(6.f).reshape(3, 2);
+        CheckNdArray(Swapaxes(m1, -1, -2),
+                     "[[0, 2, 4],\n"
+                     " [1, 3, 5]]");
+        auto m2 = NdArray::Arange(8).reshape(2, 2, 2);
+        CheckNdArray(Swapaxes(m2, 0, 2),
+                     "[[[0, 4],\n"
+                     "  [2, 6]],\n"
+                     " [[1, 5],\n"
+                     "  [3, 7]]]");
+    }
+
     SECTION("Function Inverse (2d)") {
         auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
         auto m2 = Inv(m1);
