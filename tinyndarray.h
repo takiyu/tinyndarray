@@ -156,7 +156,6 @@ public:
     NdArray slice(std::initializer_list<I>... slice_index) const;  // {i, j}...
 
     NdArray dot(const NdArray& other) const;
-    NdArray dot(float other) const;
     NdArray cross(const NdArray& other) const;
 
     NdArray sum(const Axis& axes = {}, bool keepdims = false) const;
@@ -370,8 +369,6 @@ NdArray Less(float lhs, const NdArray& rhs);
 NdArray LessEqual(float lhs, const NdArray& rhs);
 // Matrix operators
 NdArray Dot(const NdArray& lhs, const NdArray& rhs);
-NdArray Dot(const NdArray& lhs, float rhs);
-NdArray Dot(float lhs, const NdArray& rhs);
 NdArray Matmul(const NdArray& lhs, const NdArray& rhs);
 NdArray Cross(const NdArray& lhs, const NdArray& rhs);
 // Basic math operators
@@ -2913,11 +2910,6 @@ NdArray NdArray::dot(const NdArray& other) const {
     return DotNdArray(*this, other);
 }
 
-NdArray NdArray::dot(float other) const {
-    // Simple multiply (right)
-    return (*this) * other;
-}
-
 // -------------------------------- Cross Method -------------------------------
 NdArray NdArray::cross(const NdArray& other) const {
     return CrossNdArray(*this, other);
@@ -3616,14 +3608,6 @@ NdArray LessEqual(float lhs, const NdArray& rhs) {
 // Matrix operators
 NdArray Dot(const NdArray& lhs, const NdArray& rhs) {
     return lhs.dot(rhs);
-}
-
-NdArray Dot(const NdArray& lhs, float rhs) {
-    return lhs * rhs;  // Simple multiply
-}
-
-NdArray Dot(float lhs, const NdArray& rhs) {
-    return lhs * rhs;  // Simple multiply
 }
 
 NdArray Matmul(const NdArray& lhs, const NdArray& rhs) {

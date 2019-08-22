@@ -478,13 +478,9 @@ TEST_CASE("NdArray") {
     SECTION("Dot (scalar)") {
         // Scalar multiply
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);
-        auto m1_a1 = m1.dot(2.f);
-        auto m1_a2 = m1.dot(NdArray{2.f});
+        auto m1_a = m1.dot(NdArray{2.f});
         auto m1_b = NdArray({2.f}).dot(m1);
-        CheckNdArray(m1_a1,
-                     "[[0, 2, 4],\n"
-                     " [6, 8, 10]]");
-        CheckNdArray(m1_a2,
+        CheckNdArray(m1_a,
                      "[[0, 2, 4],\n"
                      " [6, 8, 10]]");
         CheckNdArray(m1_b,
@@ -1532,8 +1528,8 @@ TEST_CASE("NdArray") {
         auto m1 = NdArray::Arange(6.f).reshape(2, 3);
         auto m2 = NdArray::Arange(3.f);
         auto m12 = Dot(m1, m2);
-        auto m_a = Dot(m2, 2.f);
-        auto m_b = Dot(2.f, m2);
+        auto m_a = Dot(m2, {2.f});
+        auto m_b = Dot({2.f}, m2);
         CheckNdArray(m12, "[5, 14]");
         CheckNdArray(m_a, "[0, 2, 4]");
         CheckNdArray(m_b, "[0, 2, 4]");
