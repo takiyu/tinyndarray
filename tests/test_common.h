@@ -1550,7 +1550,7 @@ TEST_CASE("NdArray") {
         CheckNdArray(Sign(m2), "[-1, -1, -1, 0, 1, 1, 1]");
         CheckNdArray(Ceil(m2), "[-1, -0, -0, 0, 1, 1, 1]");
         CheckNdArray(Floor(m2), "[-1, -1, -1, 0, 0, 0, 1]");
-        CheckNdArray(Clip(m2, -0.5, 0.4),
+        CheckNdArray(Clip(m2, -0.5f, 0.4f),
                      "[-0.5, -0.5, -0.333333, 0, 0.333333, 0.4, 0.4]");
         CheckNdArray(Sqrt(m1), "[0, 1, 1.41421]");
         CheckNdArray(Exp(m1), "[1, 2.71828, 7.38906]");
@@ -2101,7 +2101,7 @@ TEST_CASE("NdArray") {
                             static_cast<NdArray (*)(NdArray &&)>(Floor));
         auto clip_bind = std::bind(
                 static_cast<NdArray (*)(NdArray&&, float, float)>(Clip),
-                std::placeholders::_1, -0.5, 0.4);
+                std::placeholders::_1, -0.5f, 0.4f);
         CheckNdArrayInplace(NdArray::Arange(7.f) / 3.f - 1.f,
                             "[-0.5, -0.5, -0.333333, 0, 0.333333, 0.4, 0.4]",
                             clip_bind);
