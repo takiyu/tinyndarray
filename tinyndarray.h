@@ -2274,6 +2274,7 @@ static NdArray TransposeNdArray(const NdArray& src) {
 
 static NdArray SwapaxesNdArray(const NdArray& src, int axis1, int axis2) {
     const Shape& src_shape = src.shape();
+    const size_t ndim = src_shape.size();
 
     // Fix negative axis
     if (axis1 < 0) {
@@ -2282,8 +2283,12 @@ static NdArray SwapaxesNdArray(const NdArray& src, int axis1, int axis2) {
     if (axis2 < 0) {
         axis2 = static_cast<int>(src.ndim()) + axis2;
     }
+    // Check axis
     const size_t axis1_l = static_cast<size_t>(axis1);
     const size_t axis2_l = static_cast<size_t>(axis2);
+    if (ndim <= axis1_l || ndim <= axis2_l) {
+        throw std::runtime_error("Invalid axis for Swapaxes");
+    }
 
     // Create result shape
     Shape ret_shape = src_shape;
@@ -2296,7 +2301,6 @@ static NdArray SwapaxesNdArray(const NdArray& src, int axis1, int axis2) {
     const std::vector<int> ret_child_sizes = ComputeChildSizes(ret_shape);
 
     // Apply view change
-    const size_t ndim = src_shape.size();
     ChangeNdArrayView(ret.data(), src.data(), src.size(), [&](int src_idx) {
         // Decompose
         auto idxs = std::make_unique<int[]>(ndim);
