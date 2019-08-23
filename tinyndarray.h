@@ -368,8 +368,10 @@ NdArray GreaterEqual(float lhs, const NdArray& rhs);
 NdArray Less(float lhs, const NdArray& rhs);
 NdArray LessEqual(float lhs, const NdArray& rhs);
 // Matrix operators
-NdArray Dot(const NdArray& lhs, const NdArray& rhs);
-NdArray Matmul(const NdArray& lhs, const NdArray& rhs);
+NdArray Dot(const NdArray& lhs, const NdArray& rhs, bool trans_lhs = false,
+            bool trans_rhs = false);
+NdArray Matmul(const NdArray& lhs, const NdArray& rhs, bool trans_lhs = false,
+               bool trans_rhs = false);
 NdArray Cross(const NdArray& lhs, const NdArray& rhs);
 // Basic math operators
 NdArray Abs(const NdArray& x);
@@ -1612,7 +1614,8 @@ void DotNdArrayNdMdImpl(const NdArray::Iter& ret_data,
 #endif
 }
 
-static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
+static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs,
+                              bool trans_lhs, bool trans_rhs) {
     const Shape& l_shape = lhs.shape();  // 1 <= l.size
     const Shape& r_shape = rhs.shape();  // 2 <= r.size
 
@@ -1645,7 +1648,8 @@ static NdArray DotNdArrayNdMd(const NdArray& lhs, const NdArray& rhs) {
     return ret;
 }
 
-static NdArray DotNdArray(const NdArray& lhs, const NdArray& rhs) {
+static NdArray DotNdArray(const NdArray& lhs, const NdArray& rhs,
+                          bool trans_lhs, bool trans_rhs) {
     const Shape& l_shape = lhs.shape();
     const Shape& r_shape = rhs.shape();
     if (lhs.size() == 0 || rhs.size() == 0) {
@@ -1663,10 +1667,12 @@ static NdArray DotNdArray(const NdArray& lhs, const NdArray& rhs) {
     } else if (r_shape.size() == 1) {
         // Broadcast right 1D array
         const Shape shape(l_shape.begin(), l_shape.end() - 1);
-        return DotNdArrayNdMd(lhs, rhs.reshape(r_shape[0], 1)).reshape(shape);
+        return DotNdArrayNdMd(lhs, rhs.reshape(r_shape[0], 1), trans_lhs,
+                              trans_rhs)
+                .reshape(shape);
     } else {
         // Basic matrix product
-        return DotNdArrayNdMd(lhs, rhs);
+        return DotNdArrayNdMd(lhs, rhs, trans_lhs, trans_rhs);
     }
 }
 
@@ -1686,7 +1692,8 @@ static Shape CheckMatmulable(const Shape& l_shape, const Shape& r_shape) {
     return ret_shape;
 }
 
-static NdArray MatmulNdArrayImpl(const NdArray& lhs, const NdArray& rhs) {
+static NdArray MatmulNdArrayImpl(const NdArray& lhs, const NdArray& rhs,
+                                 bool trans_lhs, bool trans_rhs) {
     Shape l_shape = lhs.shape();
     Shape r_shape = rhs.shape();
 
@@ -1729,7 +1736,8 @@ static NdArray MatmulNdArrayImpl(const NdArray& lhs, const NdArray& rhs) {
     return ret;
 }
 
-static NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs) {
+static NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs,
+                             bool trans_lhs, bool trans_rhs) {
     if (lhs.size() == 0 || rhs.size() == 0) {
         // Empty array
         throw std::runtime_error("Matmul product of empty array");
@@ -1749,7 +1757,8 @@ static NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs) {
     }
 
     // Run matmul
-    NdArray ret = MatmulNdArrayImpl(lhs.reshape(l_shape), rhs.reshape(r_shape));
+    NdArray ret = MatmulNdArrayImpl(lhs.reshape(l_shape), rhs.reshape(r_shape),
+                                    trans_lhs, trans_rhs);
 
     // Shrink 2D to 1D
     const Shape& ret_shape = ret.shape();
@@ -2907,12 +2916,12 @@ NdArray NdArray::slice(std::initializer_list<I>... slice_index) const {
 
 // --------------------------------- Dot Method --------------------------------
 NdArray NdArray::dot(const NdArray& other) const {
-    return DotNdArray(*this, other);
+    return Dot(*this, other);
 }
 
 // -------------------------------- Cross Method -------------------------------
 NdArray NdArray::cross(const NdArray& other) const {
-    return CrossNdArray(*this, other);
+    return Cross(*this, other);
 }
 
 // -------------------------------- Axis Method --------------------------------
@@ -3606,16 +3615,18 @@ NdArray LessEqual(float lhs, const NdArray& rhs) {
 }
 
 // Matrix operators
-NdArray Dot(const NdArray& lhs, const NdArray& rhs) {
-    return lhs.dot(rhs);
+NdArray Dot(const NdArray& lhs, const NdArray& rhs, bool trans_lhs,
+            bool trans_rhs) {
+    return DotNdArray(lhs, rhs, trans_lhs, trans_rhs);
 }
 
-NdArray Matmul(const NdArray& lhs, const NdArray& rhs) {
-    return MatmulNdArray(lhs, rhs);
+NdArray Matmul(const NdArray& lhs, const NdArray& rhs, bool trans_lhs,
+               bool trans_rhs) {
+    return MatmulNdArray(lhs, rhs, trans_lhs, trans_rhs);
 }
 
 NdArray Cross(const NdArray& lhs, const NdArray& rhs) {
-    return lhs.cross(rhs);
+    return CrossNdArray(lhs, rhs);
 }
 
 // Basic math operators
