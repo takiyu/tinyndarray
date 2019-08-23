@@ -16,9 +16,9 @@ public:
     }
 
     float getElapsedMsec() const {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(m_end -
-                                                                     m_start)
-                .count();
+        using namespace std::chrono;
+        return static_cast<float>(
+                duration_cast<milliseconds>(m_end - m_start).count());
     }
 
 private:
