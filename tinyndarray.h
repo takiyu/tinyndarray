@@ -181,30 +181,6 @@ private:
     static int s_batch_scale;
 };
 
-// --------------------------------- Iterator ----------------------------------
-template <bool C>
-class NdArray::IterBase {
-public:
-    IterBase(Float<C>* p_);
-    virtual ~IterBase();
-    Float<C>& operator*() const;
-    Float<C>& operator[](int i) const;
-    IterBase& operator++();
-    IterBase& operator--();
-    IterBase operator++(int);
-    IterBase operator--(int);
-    IterBase operator+(int i) const;
-    IterBase operator-(int i) const;
-    IterBase& operator+=(int i);
-    IterBase& operator-=(int i);
-    bool operator==(const IterBase& other) const;
-    bool operator!=(const IterBase& other) const;
-    operator ConstIter() const;
-
-private:
-    Float<C>* p;
-};
-
 // --------------------------------- Operators ---------------------------------
 // Print
 std::ostream& operator<<(std::ostream& os, const NdArray& x);
@@ -518,9 +494,109 @@ NdArray Where(NdArray&& cond, float x, float y);
 // Inverse
 NdArray Inv(NdArray&& x);
 
-// -------------------------- Iterator Specializations -------------------------
-template class NdArray::IterBase<false>;
-template class NdArray::IterBase<true>;
+// --------------------------------- Iterator ----------------------------------
+template <bool C>
+class NdArray::IterBase {
+public:
+    IterBase(Float<C>* p_);
+    virtual ~IterBase();
+    Float<C>& operator*() const;
+    Float<C>& operator[](int i) const;
+    IterBase& operator++();
+    IterBase& operator--();
+    IterBase operator++(int);
+    IterBase operator--(int);
+    IterBase operator+(int i) const;
+    IterBase operator-(int i) const;
+    IterBase& operator+=(int i);
+    IterBase& operator-=(int i);
+    bool operator==(const IterBase& other) const;
+    bool operator!=(const IterBase& other) const;
+    operator ConstIter() const;
+
+private:
+    Float<C>* p;
+};
+
+// --------------------- Iterator Template Implementation ----------------------
+template <bool C>
+NdArray::IterBase<C>::IterBase(Float<C>* p_) : p(p_) {}
+
+template <bool C>
+NdArray::IterBase<C>::~IterBase() {}
+
+template <bool C>
+Float<C>& NdArray::IterBase<C>::operator*() const {
+    return *p;
+}
+
+template <bool C>
+Float<C>& NdArray::IterBase<C>::operator[](int i) const {
+    return p[i];
+}
+
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator++() {
+    p++;
+    return *this;
+}
+
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator--() {
+    p--;
+    return *this;
+}
+
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator++(int) {
+    IterBase tmp = *this;
+    p++;
+    return tmp;
+}
+
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator--(int) {
+    IterBase tmp = *this;
+    p--;
+    return tmp;
+}
+
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator+(int i) const {
+    return {p + i};
+}
+
+template <bool C>
+NdArray::IterBase<C> NdArray::IterBase<C>::operator-(int i) const {
+    return {p - i};
+}
+
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator+=(int i) {
+    p += i;
+    return *this;
+}
+
+template <bool C>
+NdArray::IterBase<C>& NdArray::IterBase<C>::operator-=(int i) {
+    p -= i;
+    return *this;
+}
+
+template <bool C>
+bool NdArray::IterBase<C>::operator==(const IterBase& other) const {
+    return p == other.p;
+}
+
+template <bool C>
+bool NdArray::IterBase<C>::operator!=(const IterBase& other) const {
+    return p != other.p;
+}
+
+template <bool C>
+NdArray::IterBase<C>::operator NdArray::ConstIter() const {
+    return NdArray::ConstIter{p};
+}
 
 #endif  // TINYNDARRAY_NO_DECLARATION
 // #############################################################################
@@ -2422,86 +2498,6 @@ public:
     Shape shape;
     std::shared_ptr<float> v;  // C++17: Replace with `shared_ptr<float[]>`.
 };
-
-// --------------------------------- Iterator ----------------------------------
-template <bool C>
-NdArray::IterBase<C>::IterBase(Float<C>* p_) : p(p_) {}
-
-template <bool C>
-NdArray::IterBase<C>::~IterBase() {}
-
-template <bool C>
-Float<C>& NdArray::IterBase<C>::operator*() const {
-    return *p;
-}
-
-template <bool C>
-Float<C>& NdArray::IterBase<C>::operator[](int i) const {
-    return p[i];
-}
-
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator++() {
-    p++;
-    return *this;
-}
-
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator--() {
-    p--;
-    return *this;
-}
-
-template <bool C>
-NdArray::IterBase<C> NdArray::IterBase<C>::operator++(int) {
-    IterBase tmp = *this;
-    p++;
-    return tmp;
-}
-
-template <bool C>
-NdArray::IterBase<C> NdArray::IterBase<C>::operator--(int) {
-    IterBase tmp = *this;
-    p--;
-    return tmp;
-}
-
-template <bool C>
-NdArray::IterBase<C> NdArray::IterBase<C>::operator+(int i) const {
-    return {p + i};
-}
-
-template <bool C>
-NdArray::IterBase<C> NdArray::IterBase<C>::operator-(int i) const {
-    return {p - i};
-}
-
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator+=(int i) {
-    p += i;
-    return *this;
-}
-
-template <bool C>
-NdArray::IterBase<C>& NdArray::IterBase<C>::operator-=(int i) {
-    p -= i;
-    return *this;
-}
-
-template <bool C>
-bool NdArray::IterBase<C>::operator==(const IterBase& other) const {
-    return p == other.p;
-}
-
-template <bool C>
-bool NdArray::IterBase<C>::operator!=(const IterBase& other) const {
-    return p != other.p;
-}
-
-template <bool C>
-NdArray::IterBase<C>::operator NdArray::ConstIter() const {
-    return NdArray::ConstIter{p};
-}
 
 // ------------------------------- Static Member -------------------------------
 std::random_device NdArray::s_rand_seed;
