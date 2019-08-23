@@ -498,6 +498,12 @@ NdArray Inv(NdArray&& x);
 template <bool C>
 class NdArray::IterBase {
 public:
+    using iterator_category = std::random_access_iterator_tag;
+    using value_type = Float<C>;
+    using difference_type = std::ptrdiff_t;
+    using pointer = Float<C>*;
+    using reference = Float<C>&;
+
     IterBase(Float<C>* p_);
     virtual ~IterBase();
     Float<C>& operator*() const;
