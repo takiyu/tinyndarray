@@ -1817,38 +1817,13 @@ static NdArray MatmulNdArray(const NdArray& lhs, const NdArray& rhs) {
         throw std::runtime_error("Matmul product of empty array");
     }
 
-    Shape l_shape = lhs.shape();
-    Shape r_shape = rhs.shape();
-
-    // Extends 1D to 2D
-    const bool l_extend_1d = (l_shape.size() == 1);
-    const bool r_extend_1d = (r_shape.size() == 1);
-    if (l_extend_1d) {
-        l_shape = Shape{1, l_shape[0]};
+    if (lhs.ndim() == 1 || rhs.ndim() == 1) {
+        // Use dot for 1-dim arrays
+        return Dot(lhs, rhs);
+    } else {
+        // Run matmul for higher dimensions
+        return MatmulNdArrayImpl(lhs, rhs);
     }
-    if (r_extend_1d) {
-        r_shape = Shape{r_shape[0], 1};
-    }
-
-    // Run matmul
-    NdArray ret = MatmulNdArrayImpl(lhs.reshape(l_shape), rhs.reshape(r_shape));
-
-    // Shrink 2D to 1D
-    const Shape& ret_shape = ret.shape();
-    if (l_extend_1d && r_extend_1d) {
-        Shape new_ret_shape(ret_shape.begin(), ret_shape.end() - 2);
-        return ret.reshape(new_ret_shape);
-    }
-    if (l_extend_1d) {
-        Shape new_ret_shape(ret_shape.begin(), ret_shape.end() - 2);
-        new_ret_shape.insert(new_ret_shape.end(), ret_shape.end()[-1]);
-        return ret.reshape(new_ret_shape);
-    }
-    if (r_extend_1d) {
-        Shape new_ret_shape(ret_shape.begin(), ret_shape.end() - 1);
-        return ret.reshape(new_ret_shape);
-    }
-    return ret;
 }
 
 // ------------------- Utilities for NdArray (Cross product) -------------------
