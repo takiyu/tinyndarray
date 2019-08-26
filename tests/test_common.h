@@ -1594,6 +1594,15 @@ TEST_CASE("NdArray") {
         auto m1 = NdArray::Arange(6.f).reshape(1, 2, 1, 3, 1);
         CHECK(Reshape(m1, {2, 1, 3}).shape() == Shape{2, 1, 3});
         CHECK(Squeeze(m1).shape() == Shape{2, 3});
+        CHECK(Squeeze(m1, {0, 2}).shape() == Shape{2, 3, 1});
+        CHECK(Squeeze(m1, {-1, -3}).shape() == Shape{1, 2, 3});
+        CHECK(ExpandDims(m1, 0).shape() == Shape{1, 1, 2, 1, 3, 1});
+        CHECK(ExpandDims(m1, 2).shape() == Shape{1, 2, 1, 1, 3, 1});
+        CHECK(ExpandDims(m1, 5).shape() == Shape{1, 2, 1, 3, 1, 1});
+        CHECK(ExpandDims(m1, -1).shape() == Shape{1, 2, 1, 3, 1, 1});
+        CHECK_THROWS(Squeeze(m1, {-2}));
+        CHECK_THROWS(Squeeze(m1, {5}));
+        CHECK_THROWS(ExpandDims(m1, 6));
     }
 
     SECTION("Function Stack") {

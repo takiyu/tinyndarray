@@ -161,7 +161,7 @@ Supports up to 10 dimensions.
 |                                                          | ```a[Index{2, -3}]``` or                                 |
 |                                                          | ```a(2, -3)```                                           |
 
-### Reshape
+### Reshape methods
 
 | **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
 |:--------------------------------------------------------:|:--------------------------------------------------------:|
@@ -170,6 +170,15 @@ Supports up to 10 dimensions.
 |                                                          | ```a.reshape(-1, 2, 1)```                                |
 | ```a.flatten()```                                        | ```a.flatten()```                                        |
 | ```a.ravel()```                                          | ```a.ravel()```                                          |
+
+### Reshape functions
+
+| **Numpy (Python)**                                       | **TinyNdArray (C++)**                                    |
+|:--------------------------------------------------------:|:--------------------------------------------------------:|
+| ```np.reshape(a, (-1, 2, 1))```                          | ```Reshape(a, {-1, 2, 1})```                             |
+| ```np.squeeze(a)```                                      | ```Squeeze(a)```                                         |
+| ```np.squeeze(a, [0, -2])```                             | ```Squeeze(a, {0, -2})```                                |
+| ```np.expand_dims(a, 1)```                               | ```ExpandDims(a, 1)```                                   |
 
 ### Slice
 

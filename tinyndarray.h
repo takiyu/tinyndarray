@@ -387,7 +387,8 @@ NdArray Where(const NdArray& cond, float x, const NdArray& y);
 NdArray Where(const NdArray& cond, float x, float y);
 // Shape functions
 NdArray Reshape(const NdArray& x, const Shape& shape);
-NdArray Squeeze(const NdArray& x);
+NdArray Squeeze(const NdArray& x, const Axis& axes = {});
+NdArray ExpandDims(const NdArray& x, int axis);
 // Grouping functions
 NdArray Stack(const std::vector<NdArray>& xs, int axis = 0);
 NdArray Concatenate(const std::vector<NdArray>& xs, int axis = 0);
@@ -1919,6 +1920,65 @@ static NdArray CrossNdArray(const NdArray& lhs, const NdArray& rhs) {
     }
     throw std::runtime_error("incompatible dimensions for cross product"
                              " (dimension must be 2 or 3)");
+}
+
+// ----------------------- Utilities for NdArray (Shape) -----------------------
+static NdArray SqueezeNdArray(const NdArray& x, const Axis& axes) {
+    Shape ret_shape;
+    if (axes.empty()) {
+        // Extract non zero dimensions
+        for (auto&& s : x.shape()) {
+            if (s != 1) {
+                ret_shape.push_back(s);
+            }
+        }
+        // Escape zero shape
+        if (ret_shape.empty()) {
+            ret_shape.push_back(1);
+        }
+    } else {
+        // Remove passed dimensions
+        // Normalize axis
+        Axis sorted_axes = axes;
+        const int n_dim = static_cast<int>(x.ndim());
+        for (size_t i = 0; i < sorted_axes.size(); i++) {
+            int& axis = sorted_axes[i];
+            if (axis < 0) {
+                axis = n_dim + axis;
+            }
+            if (n_dim <= axis) {
+                throw std::runtime_error("Invalid axis to squeeze (beyond)");
+            }
+        }
+        std::sort(sorted_axes.begin(), sorted_axes.end(), std::greater<int>());
+        // Copy all dim
+        ret_shape = x.shape();
+        // Remove passed axes from the tail
+        for (auto&& axis : sorted_axes) {
+            auto&& it = ret_shape.begin() + axis;
+            if (*it != 1) {
+                throw std::runtime_error("Invalid axis to squeeze (not 1)");
+            }
+            ret_shape.erase(it);
+        }
+    }
+    return x.reshape(ret_shape);
+}
+
+static NdArray ExpandDimsNdArray(const NdArray& x, int axis) {
+    // Check axis
+    Shape ret_shape = x.shape();
+    const int n_dim = static_cast<int>(x.ndim());
+    if (axis < 0) {
+        axis = n_dim + axis;
+    }
+    if (n_dim < axis) {
+        throw std::runtime_error("Invalid axis to expand dims");
+    }
+    // Insert
+    ret_shape.insert(ret_shape.begin() + axis, 1);
+    // Reshape
+    return x.reshape(ret_shape);
 }
 
 // ----------------------- Utilities for NdArray (Stack) -----------------------
@@ -3755,18 +3815,12 @@ NdArray Reshape(const NdArray& x, const Shape& shape) {
     return x.reshape(shape);
 }
 
-NdArray Squeeze(const NdArray& x) {
-    Shape ret_shape;
-    for (auto&& s : x.shape()) {
-        if (s != 1) {
-            ret_shape.push_back(s);
-        }
-    }
-    // Escape zero shape
-    if (ret_shape.empty()) {
-        ret_shape.push_back(1);
-    }
-    return x.reshape(ret_shape);
+NdArray Squeeze(const NdArray& x, const Axis& axes) {
+    return SqueezeNdArray(x, axes);
+}
+
+NdArray ExpandDims(const NdArray& x, int axis) {
+    return ExpandDimsNdArray(x, axis);
 }
 
 // Grouping functions
