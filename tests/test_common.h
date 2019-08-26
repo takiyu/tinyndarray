@@ -1600,6 +1600,7 @@ TEST_CASE("NdArray") {
         CHECK(ExpandDims(m1, 2).shape() == Shape{1, 2, 1, 1, 3, 1});
         CHECK(ExpandDims(m1, 5).shape() == Shape{1, 2, 1, 3, 1, 1});
         CHECK(ExpandDims(m1, -1).shape() == Shape{1, 2, 1, 3, 1, 1});
+        CHECK(ExpandDims(m1.ravel(), -1).shape() == Shape{6, 1});
         CHECK_THROWS(Squeeze(m1, {-2}));
         CHECK_THROWS(Squeeze(m1, {5}));
         CHECK_THROWS(ExpandDims(m1, 6));

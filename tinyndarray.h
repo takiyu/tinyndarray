@@ -1970,7 +1970,7 @@ static NdArray ExpandDimsNdArray(const NdArray& x, int axis) {
     Shape ret_shape = x.shape();
     const int n_dim = static_cast<int>(x.ndim());
     if (axis < 0) {
-        axis = n_dim + axis;
+        axis = n_dim + axis + 1;  // axis can be same as `n_dim`.
     }
     if (n_dim < axis) {
         throw std::runtime_error("Invalid axis to expand dims");
