@@ -397,6 +397,7 @@ std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis = 0);
 // Change view
 NdArray Transpose(const NdArray& x);
 NdArray Swapaxes(const NdArray& x, int axis1, int axis2);
+NdArray BroadcastTo(const NdArray& x, const Shape& shape);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -2355,6 +2356,12 @@ static NdArray SwapaxesNdArray(const NdArray& src, int axis1, int axis2) {
     return ret;
 }
 
+static NdArray BroadcastToNdArray(const NdArray& x, const Shape& shape) {
+    NdArray ret(shape);
+    return ApplyDualOpInplace(
+            std::move(ret), x, [](float, float r) { return r; }, false);
+}
+
 // ---------------------- Utilities for NdArray (Inverse) ----------------------
 static int CheckInversable(const Shape& shape) {
     if (shape.size() < 2) {
@@ -3847,6 +3854,10 @@ NdArray Transpose(const NdArray& x) {
 
 NdArray Swapaxes(const NdArray& x, int axis1, int axis2) {
     return SwapaxesNdArray(x, axis1, axis2);
+}
+
+NdArray BroadcastTo(const NdArray& x, const Shape& shape) {
+    return BroadcastToNdArray(x, shape);
 }
 
 // Inverse

@@ -1835,6 +1835,17 @@ TEST_CASE("NdArray") {
                      "  [3, 7]]]");
     }
 
+    SECTION("Function BroadcastTo") {
+        CheckNdArray(BroadcastTo(NdArray::Arange(3.f), {2, 3}),
+                     "[[0, 1, 2],\n"
+                     " [0, 1, 2]]");
+        CheckNdArray(BroadcastTo(NdArray::Arange(3.f), {2, 2, 3}),
+                     "[[[0, 1, 2],\n"
+                     "  [0, 1, 2]],\n"
+                     " [[0, 1, 2],\n"
+                     "  [0, 1, 2]]]");
+    }
+
     SECTION("Function Inverse (2d)") {
         auto m1 = NdArray::Arange(4).reshape(2, 2) + 1.f;
         auto m2 = Inv(m1);

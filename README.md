@@ -342,6 +342,7 @@ View chaining methods create copy of the array, not reference.
 |:--------------------------------------------------------:|:--------------------------------------------------------:|
 | ```np.transpose(x)```                                    | ```Transpose(x)```                                       |
 | ```np.swapaxes(x, 0, 2)```                               | ```Swapaxes(x, 0, 2)```                                  |
+| ```np.broadcast_to(x, (3, 2))```                         | ```BroadcastTo(x, {3, 2})```                             |
 
 ### Matrix Products
 
