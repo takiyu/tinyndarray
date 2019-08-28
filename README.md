@@ -333,7 +333,7 @@ Functions which takes two arguments support broadcast.
 | ```np.concatenate((a, b, ...), axis=0)```                | ```Concatenate({a, b, ...}, 0)```                        |
 | ```np.split(a, 2, axis=0)```                             | ```Split(a, 2, 0)```                                     |
 | ```np.split(a, [1, 3], axis=0)```                        | ```Split(a, {1, 3}, 0)```                                |
-|                                                          | ```Separate(a, 0)```  An inverse of `Stack(a, 0)`        |
+|                                                          | ```Separate(a, 0)```  An inverse of Stack(a, 0)          |
 
 ### View Changing Functions
 
