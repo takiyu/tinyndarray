@@ -1809,6 +1809,25 @@ TEST_CASE("NdArray") {
                      "  [15]]]");
     }
 
+    SECTION("Function Separate") {
+        auto m = NdArray::Arange(16.f).reshape(2, 4, 2);
+        // Axis 0
+        auto r0 = Separate(m, 0);
+        CHECK(r0.size() == 2);
+        auto m0 = Stack(r0, 0);
+        CHECK(All(m == m0));
+        // Axis 1
+        auto r1 = Separate(m, 1);
+        CHECK(r1.size() == 4);
+        auto m1 = Stack(r1, 1);
+        CHECK(All(m == m1));
+        // Axis 2
+        auto r2 = Separate(m, 2);
+        CHECK(r2.size() == 2);
+        auto m2 = Stack(r2, 2);
+        CHECK(All(m == m2));
+    }
+
     SECTION("Function Transpose") {
         auto m1 = NdArray::Arange(6.f).reshape(3, 2);
         CheckNdArray(Transpose(m1),

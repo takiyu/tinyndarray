@@ -394,6 +394,7 @@ NdArray Stack(const std::vector<NdArray>& xs, int axis = 0);
 NdArray Concatenate(const std::vector<NdArray>& xs, int axis = 0);
 std::vector<NdArray> Split(const NdArray& x, int n_section, int axis = 0);
 std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis = 0);
+std::vector<NdArray> Separate(const NdArray& x, int axis = 0);
 // Change view
 NdArray Transpose(const NdArray& x);
 NdArray Swapaxes(const NdArray& x, int axis1, int axis2);
@@ -2261,6 +2262,29 @@ static std::vector<NdArray> SplitNdArray(const NdArray& x, const Index& idxs,
     return SplitNdArrayImpl(x, idxs, axis);
 }
 
+static std::vector<NdArray> SeparateNdArray(const NdArray& x, int axis) {
+    // Check split axis
+    CheckSplitAxis(x, axis);
+    // Get splitting size (== dim size)
+    const int dim_size = x.shape()[static_cast<size_t>(axis)];
+
+    // Create splitting indices
+    Index idxs;
+    for (int sec_i = 1; sec_i < dim_size; sec_i++) {  // no first one
+        idxs.push_back(sec_i);
+    }
+
+    // Split by indices
+    std::vector<NdArray> res = SplitNdArrayImpl(x, idxs, axis);
+
+    // Squeeze
+    for (size_t i = 0; i < res.size(); i++) {
+        res[i] = Squeeze(res[i], {axis});
+    }
+
+    return res;
+}
+
 // -------------------- Utilities for NdArray (Change View) --------------------
 template <typename ViewF>
 static void ChangeNdArrayView(const NdArray::Iter& ret_data,
@@ -3845,6 +3869,10 @@ std::vector<NdArray> Split(const NdArray& x, int n_section, int axis) {
 
 std::vector<NdArray> Split(const NdArray& x, const Index& idxs, int axis) {
     return SplitNdArray(x, idxs, axis);
+}
+
+std::vector<NdArray> Separate(const NdArray& x, int axis) {
+    return SeparateNdArray(x, axis);
 }
 
 // Change view
