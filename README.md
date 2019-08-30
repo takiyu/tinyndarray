@@ -298,9 +298,9 @@ Functions which takes two arguments support broadcast.
 |                                                          | ```Sum(a, Axis{0})```                                    |
 | ```np.sum(a, axis=(0, 2))```                             | ```Sum(a, {0, 2})``` or                                  |
 |                                                          | ```Sum(a, Axis{0, 2})```                                 |
+| ```np.mean(a, axis=0)```                                 | ```Mean(a, {0})```                                       |
 | ```np.min(a, axis=0)```                                  | ```Min(a, {0})```                                        |
 | ```np.max(a, axis=0)```                                  | ```Max(a, {0})```                                        |
-| ```np.mean(a, axis=0)```                                 | ```Mean(a, {0})```                                       |
 
 ### Logistic Functions
 
@@ -321,9 +321,9 @@ Functions which takes two arguments support broadcast.
 |                                                          | ```a.sum(Axis{0})```                                     |
 | ```a.sum(axis=(0, 2))```                                 | ```a.sum({0, 2})``` or                                   |
 |                                                          | ```a.sum(Axis{0, 2})```                                  |
+| ```a.mean(axis=0)```                                     | ```a.mean({0})```                                        |
 | ```a.min(axis=0)```                                      | ```a.min({0})```                                         |
 | ```a.max(axis=0)```                                      | ```a.max({0})```                                         |
-| ```a.mean(axis=0)```                                     | ```a.mean({0})```                                        |
 
 ### Grouping Functions
 

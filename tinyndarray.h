@@ -159,9 +159,9 @@ public:
     NdArray cross(const NdArray& other) const;
 
     NdArray sum(const Axis& axes = {}, bool keepdims = false) const;
+    NdArray mean(const Axis& axes = {}, bool keepdims = false) const;
     NdArray min(const Axis& axes = {}, bool keepdims = false) const;
     NdArray max(const Axis& axes = {}, bool keepdims = false) const;
-    NdArray mean(const Axis& axes = {}, bool keepdims = false) const;
 
     // Parameters
     static constexpr int DOT_CACHE_SCALE = 10;  // depends on situation and CPU
@@ -373,9 +373,9 @@ NdArray ArcTan2(const NdArray& y, float x);
 NdArray ArcTan2(float y, const NdArray& x);
 // Axis functions
 NdArray Sum(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
+NdArray Mean(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
 NdArray Min(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
 NdArray Max(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
-NdArray Mean(const NdArray& x, const Axis& axes = {}, bool keepdims = false);
 // Logistic functions
 bool All(const NdArray& x);
 bool Any(const NdArray& x);
@@ -2992,16 +2992,16 @@ NdArray NdArray::sum(const Axis& axes, bool keepdims) const {
     return Sum(*this, axes, keepdims);
 }
 
+NdArray NdArray::mean(const Axis& axes, bool keepdims) const {
+    return Mean(*this, axes, keepdims);
+}
+
 NdArray NdArray::min(const Axis& axes, bool keepdims) const {
     return Min(*this, axes, keepdims);
 }
 
 NdArray NdArray::max(const Axis& axes, bool keepdims) const {
     return Max(*this, axes, keepdims);
-}
-
-NdArray NdArray::mean(const Axis& axes, bool keepdims) const {
-    return Mean(*this, axes, keepdims);
 }
 
 // ---------------------- Template Method Specializations ----------------------
@@ -3783,6 +3783,14 @@ NdArray Sum(const NdArray& x, const Axis& axes, bool keepdims) {
     return ReduceAxis(x, axes, keepdims, 0.f, std::plus<float>());
 }
 
+NdArray Mean(const NdArray& x, const Axis& axes, bool keepdims) {
+    if (x.size() == 0) {
+        return {std::numeric_limits<float>::quiet_NaN()};
+    }
+    auto&& sum = Sum(x, axes, keepdims);
+    return sum / static_cast<float>(x.size() / sum.size());
+}
+
 NdArray Min(const NdArray& x, const Axis& axes, bool keepdims) {
     return ReduceAxisNoEmpty(x, axes, keepdims,
                              std::numeric_limits<float>::max(),
@@ -3793,14 +3801,6 @@ NdArray Max(const NdArray& x, const Axis& axes, bool keepdims) {
     return ReduceAxisNoEmpty(x, axes, keepdims,
                              -std::numeric_limits<float>::max(),
                              [](float a, float b) { return std::max(a, b); });
-}
-
-NdArray Mean(const NdArray& x, const Axis& axes, bool keepdims) {
-    if (x.size() == 0) {
-        return {std::numeric_limits<float>::quiet_NaN()};
-    }
-    auto&& sum = Sum(x, axes, keepdims);
-    return sum / static_cast<float>(x.size() / sum.size());
 }
 
 bool All(const NdArray& x) {
