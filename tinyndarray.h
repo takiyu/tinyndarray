@@ -399,6 +399,7 @@ std::vector<NdArray> Separate(const NdArray& x, int axis = 0);
 NdArray Transpose(const NdArray& x);
 NdArray Swapaxes(const NdArray& x, int axis1, int axis2);
 NdArray BroadcastTo(const NdArray& x, const Shape& shape);
+NdArray SumTo(const NdArray& x, const Shape& shape);
 // Inverse
 NdArray Inv(const NdArray& x);
 // ------------------------ In-place Operator Functions ------------------------
@@ -2386,6 +2387,35 @@ static NdArray BroadcastToNdArray(const NdArray& x, const Shape& shape) {
             std::move(ret), x, [](float, float r) { return r; }, false);
 }
 
+static NdArray SumToNdArray(const NdArray& x, const Shape& shape) {
+    const Shape& x_shape = x.shape();
+    // No need
+    if (x_shape == shape) {
+        return x;
+    }
+    // Impossible
+    if (x_shape.size() < shape.size()) {
+        return x;
+    }
+
+    // Create reduction axis
+    Axis axis;
+    const size_t lead = x_shape.size() - shape.size();
+    for (size_t i = 0; i < lead; i++) {  // lead_axis
+        axis.push_back(static_cast<int>(i));
+    }
+    for (size_t i = 0; i < shape.size(); i++) {  // axis
+        if (shape[i] == 1) {
+            axis.push_back(static_cast<int>(i + lead));
+        }
+    }
+
+    // Reduce
+    NdArray ret = x.sum(axis);
+
+    return ret;
+}
+
 // ---------------------- Utilities for NdArray (Inverse) ----------------------
 static int CheckInversable(const Shape& shape) {
     if (shape.size() < 2) {
@@ -3886,6 +3916,10 @@ NdArray Swapaxes(const NdArray& x, int axis1, int axis2) {
 
 NdArray BroadcastTo(const NdArray& x, const Shape& shape) {
     return BroadcastToNdArray(x, shape);
+}
+
+NdArray SumTo(const NdArray& x, const Shape& shape) {
+    return SumToNdArray(x, shape);
 }
 
 // Inverse
