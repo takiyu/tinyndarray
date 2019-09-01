@@ -1584,10 +1584,16 @@ TEST_CASE("NdArray") {
         CheckNdArray(Sum(m1, {1, 3}),
                      "[[63, 90],\n"
                      " [225, 252]]");
+        CheckNdArray(Sum(m1, {-1, -3}),  // negative axis
+                     "[[63, 90],\n"
+                     " [225, 252]]");
         auto m2 = NdArray::Arange(12.f).reshape(2, 3, 2) - 6.f;
         CheckNdArray(Min(m2, {2, 1}), "[-6, 0]");
+        CheckNdArray(Min(m2, {-2, -1}), "[-6, 0]");  // negative axis
         CheckNdArray(Max(m2, {2, 1}), "[-1, 5]");
+        CheckNdArray(Max(m2, {-2, -1}), "[-1, 5]");  // negative axis
         CheckNdArray(Mean(m2, {2, 1}), "[-3.5, 2.5]");
+        CheckNdArray(Mean(m2, {-2, -1}), "[-3.5, 2.5]");  // negative axis
     }
 
     SECTION("Function Shape") {
@@ -1640,14 +1646,22 @@ TEST_CASE("NdArray") {
                      " [[9, 10],\n"
                      "  [10, 11],\n"
                      "  [11, 12]]]");
-        CHECK_THROWS(Stack({m1, m2}, -1));
+        CheckNdArray(Stack({m1, m2}, -3),  // negative axis
+                     "[[[0, 1, 2],\n"
+                     "  [3, 4, 5],\n"
+                     "  [6, 7, 8],\n"
+                     "  [9, 10, 11]],\n"
+                     " [[1, 2, 3],\n"
+                     "  [4, 5, 6],\n"
+                     "  [7, 8, 9],\n"
+                     "  [10, 11, 12]]]");
         CHECK_THROWS(Stack({m1, m2}, 3));
+        CHECK_THROWS(Stack({m1, m2}, -4));  // negative axis
     }
 
     SECTION("Function Concatenate") {
         auto m1 = NdArray::Arange(12.f).reshape(4, 3);
         auto m2 = NdArray::Arange(6.f).reshape(2, 3) + 1.f;
-        auto m3 = NdArray::Arange(8.f).reshape(4, 2) + 1.f;
         CheckNdArray(Concatenate({m1, m2}, 0),
                      "[[0, 1, 2],\n"
                      " [3, 4, 5],\n"
@@ -1655,21 +1669,23 @@ TEST_CASE("NdArray") {
                      " [9, 10, 11],\n"
                      " [1, 2, 3],\n"
                      " [4, 5, 6]]");
+        CHECK_THROWS(Concatenate({m1, m2}, 1));
+        CHECK_THROWS(Concatenate({m1, m2}, 2));
+        CHECK_THROWS(Concatenate({m1, m2}, -1));
+        CHECK_THROWS(Concatenate({m1, m2}, -3));
+        auto m3 = NdArray::Arange(8.f).reshape(4, 2) + 1.f;
         CheckNdArray(Concatenate({m1, m3}, 1),
                      "[[0, 1, 2, 1, 2],\n"
                      " [3, 4, 5, 3, 4],\n"
                      " [6, 7, 8, 5, 6],\n"
                      " [9, 10, 11, 7, 8]]");
-        CHECK_THROWS(Concatenate({m1, m2}, -1));
-        CHECK_THROWS(Concatenate({m1, m2}, 1));
-        CHECK_THROWS(Concatenate({m1, m2}, 2));
-        CHECK_THROWS(Concatenate({m1, m3}, -1));
         CHECK_THROWS(Concatenate({m1, m3}, 0));
         CHECK_THROWS(Concatenate({m1, m3}, 2));
+        CHECK_THROWS(Concatenate({m1, m3}, -2));
+        CHECK_THROWS(Concatenate({m1, m3}, -3));
 
         auto m4 = NdArray::Arange(12.f).reshape(4, 1, 3);
         auto m5 = NdArray::Arange(6.f).reshape(2, 1, 3) + 1.f;
-        auto m6 = NdArray::Arange(8.f).reshape(4, 1, 2) + 1.f;
         CheckNdArray(Concatenate({m4, m5}, 0),
                      "[[[0, 1, 2]],\n"
                      " [[3, 4, 5]],\n"
@@ -1677,17 +1693,22 @@ TEST_CASE("NdArray") {
                      " [[9, 10, 11]],\n"
                      " [[1, 2, 3]],\n"
                      " [[4, 5, 6]]]");
+        CHECK_THROWS(Concatenate({m4, m5}, 1));
+        CHECK_THROWS(Concatenate({m4, m5}, 2));
+        CHECK_THROWS(Concatenate({m4, m5}, -1));
+        CHECK_THROWS(Concatenate({m4, m5}, -2));
+        CHECK_THROWS(Concatenate({m4, m5}, -4));
+        auto m6 = NdArray::Arange(8.f).reshape(4, 1, 2) + 1.f;
         CheckNdArray(Concatenate({m4, m6}, 2),
                      "[[[0, 1, 2, 1, 2]],\n"
                      " [[3, 4, 5, 3, 4]],\n"
                      " [[6, 7, 8, 5, 6]],\n"
                      " [[9, 10, 11, 7, 8]]]");
-        CHECK_THROWS(Concatenate({m4, m5}, -1));
-        CHECK_THROWS(Concatenate({m4, m5}, 1));
-        CHECK_THROWS(Concatenate({m4, m5}, 2));
-        CHECK_THROWS(Concatenate({m4, m6}, -1));
         CHECK_THROWS(Concatenate({m4, m6}, 0));
         CHECK_THROWS(Concatenate({m4, m6}, 1));
+        CHECK_THROWS(Concatenate({m4, m6}, -2));
+        CHECK_THROWS(Concatenate({m4, m6}, -3));
+        CHECK_THROWS(Concatenate({m4, m6}, -4));
     }
 
     SECTION("Function Split by indices") {
@@ -1747,14 +1768,26 @@ TEST_CASE("NdArray") {
                      "  [2, 3]],\n"
                      " [[8, 9],\n"
                      "  [10, 11]]]");
-
         CheckNdArray(r3[1],
                      "[[[4, 5],\n"
                      "  [6, 7]],\n"
                      " [[12, 13],\n"
                      "  [14, 15]]]");
-
         CheckNdArray(r3[2], "[]");
+
+        auto r4 = Split(m1, {2, 4}, -2);  // negative axis
+        CHECK(r4.size() == 3);
+        CheckNdArray(r4[0],
+                     "[[[0, 1],\n"
+                     "  [2, 3]],\n"
+                     " [[8, 9],\n"
+                     "  [10, 11]]]");
+        CheckNdArray(r4[1],
+                     "[[[4, 5],\n"
+                     "  [6, 7]],\n"
+                     " [[12, 13],\n"
+                     "  [14, 15]]]");
+        CheckNdArray(r4[2], "[]");
     }
 
     SECTION("Function Split by n_section") {
@@ -1807,6 +1840,21 @@ TEST_CASE("NdArray") {
                      "  [11],\n"
                      "  [13],\n"
                      "  [15]]]");
+
+        auto r3 = Split(m1, 4, -2);
+        CHECK(r3.size() == 4);
+        CheckNdArray(r3[0],
+                     "[[[0, 1]],\n"
+                     " [[8, 9]]]");
+        CheckNdArray(r3[1],
+                     "[[[2, 3]],\n"
+                     " [[10, 11]]]");
+        CheckNdArray(r3[2],
+                     "[[[4, 5]],\n"
+                     " [[12, 13]]]");
+        CheckNdArray(r3[3],
+                     "[[[6, 7]],\n"
+                     " [[14, 15]]]");
     }
 
     SECTION("Function Separate") {
@@ -1826,6 +1874,11 @@ TEST_CASE("NdArray") {
         CHECK(r2.size() == 2);
         auto m2 = Stack(r2, 2);
         CHECK(All(m == m2));
+        // Negative axis
+        auto r3 = Separate(m, -1);
+        CHECK(r3.size() == 2);
+        auto m3 = Stack(r3, -1);
+        CHECK(All(m == m3));
     }
 
     SECTION("Function Transpose") {
